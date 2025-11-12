@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %} {% block content %}
+    <h2>Editar Título da Listagem</h2>
+    
+    <p><strong>Título Atual:</strong> {{ listagem.titulo }}</p>
+    <hr>
+    
+    <p>Insira o novo título no formato NNNN/TT/AA (ex: 0123/RH/25)</p>
+
+    <form method="POST" action="">
+        {% csrf_token %}
+        <label for="titulo">Novo Título:</label>
+        <br>
+        
+        <input type="text" 
+               id="titulo" 
+               name="titulo" 
+               value="{{ listagem.titulo }}" 
+               required 
+               pattern="[0-9]{4}/[a-zA-Z0-9]+/[0-9]{2}" 
+               style="padding: 8px; width: 250px;">
+        
+        <br>
+        <small>Ex: 0001/COMPRAS/25</small>
+        <br><br>
+        
+        <button type="submit" style="padding: 10px 15px;">Salvar Alterações</button>
+        
+        <a href="{% url 'detalhe_listagem' pk=listagem.pk %}" style="margin-left: 10px;">Cancelar</a>
+    </form>
+{% endblock %}

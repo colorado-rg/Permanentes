@@ -1,0 +1,124 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<style>
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; text-align: center; }
+    
+    /* Destaque Vermelho (Alerta) */
+    .modal-content.alerta { border-top: 10px solid #d9534f; }
+    .modal-content.alerta h2 { color: #d9534f; }
+    
+    /* Destaque Verde (Sucesso/Nada encontrado) */
+    .modal-content.sucesso { border-top: 10px solid #5cb85c; }
+    .modal-content.sucesso h2 { color: #5cb85c; }
+    
+    .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .close-btn:hover { color: black; }
+    #modal-close-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 15px; }
+
+    /* Lista de resultados dentro do modal */
+    #modal-lista-resultados {
+        text-align: left;
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        padding: 10px;
+        background-color: #f9f9f9;
+    }
+</style>
+
+<h2>Verificação de Processos em Lote</h2>
+<p>Cole a sua lista de processos no campo abaixo. O sistema extrairá todos os números de 15 dígitos e verificará quais são permanentes.</p>
+
+<form method="POST" action="">
+    {% csrf_token %}
+    <label for="lista_processos">Cole os processos aqui:</label><br>
+    <textarea name="lista_processos" id="lista_processos" rows="15" style="width: 100%;">{{ texto_original|default:'' }}</textarea>
+    <br><br>
+    <button type="submit" style="padding: 10px 20px; font-size: 16px;">Verificar Lista</button>
+</form>
+
+<div id="resultadoModal" class="modal">
+    <div class="modal-content"> 
+        <span class="close-btn">&times;</span>
+        <h2 id="modal-titulo">Resultados da Verificação</h2>
+        <p id="modal-subtitulo"></p>
+        <div id="modal-lista-resultados"></div>
+        <button id="modal-close-button">Fechar</button>
+    </div>
+</div>
+
+{{ resultados_encontrados|json_script:"resultados-data" }}
+{{ total_verificados|json_script:"total-data" }}
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        
+        // 1. Tentar ler os dados enviados pela View
+        let resultados = [];
+        let total = 0;
+        
+        try {
+            resultados = JSON.parse(document.getElementById('resultados-data').textContent);
+            total = JSON.parse(document.getElementById('total-data').textContent);
+        } catch (e) {
+            // Se os dados não existirem (ex: 1º carregamento), ignora
+        }
+
+        // 2. Se 'total' for > 0, significa que o formulário foi enviado e temos resultados
+        if (total > 0) {
+            
+            // 3. Obter os elementos do modal
+            const modal = document.getElementById('resultadoModal');
+            const modalContent = modal.querySelector('.modal-content');
+            const modalTitulo = document.getElementById('modal-titulo');
+            const modalSubtitulo = document.getElementById('modal-subtitulo');
+            const modalLista = document.getElementById('modal-lista-resultados');
+            const closeBtn = modal.querySelector('.close-btn');
+            const closeButton = document.getElementById('modal-close-button');
+
+            // 4. Verificar se algo foi encontrado
+            if (resultados.length > 0) {
+                // --- ALERTA: Processos encontrados! ---
+                modalContent.className = 'modal-content alerta'; // Adiciona classe de alerta
+                modalTitulo.textContent = `🚨 ${resultados.length} Processo(s) Permanente(s) Encontrado(s)!`;
+                modalSubtitulo.textContent = `De ${total} números verificados, os seguintes são permanentes:`;
+
+                // Constrói a lista <ul> para o modal
+                let listaHtml = '<ul>';
+                for (const num of resultados) {
+                    listaHtml += `<li><strong>${num}</strong></li>`;
+                }
+                listaHtml += '</ul>';
+                modalLista.innerHTML = listaHtml;
+
+            } else {
+                // --- SUCESSO: Nenhum processo encontrado ---
+                modalContent.className = 'modal-content sucesso'; // Adiciona classe de sucesso
+                modalTitulo.textContent = `✅ Verificação Concluída`;
+                modalSubtitulo.textContent = `De ${total} números verificados, nenhum é permanente.`;
+                modalLista.innerHTML = '<p>Nenhum resultado.</p>';
+            }
+
+            // 5. Mostrar o modal
+            modal.style.display = 'block';
+            closeButton.focus();
+
+            // 6. Ligar os botões de fechar
+            const closeModal = () => {
+                modal.style.display = 'none';
+                document.getElementById('lista_processos').focus(); // Foca na textarea
+            };
+            closeBtn.onclick = closeModal;
+            closeButton.onclick = closeModal;
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    closeModal();
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

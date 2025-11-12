@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Procura Permanentes</title>
+    <style>
+        /* Estilos CSS básicos para o projeto */
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f4f4f4; 
+        }
+        
+        /* Estilo da Barra de Navegação (Menu Superior) */
+        .nav { 
+            background-color: #333; /* Cor de fundo escura */
+            color: white; 
+            padding: 15px;
+            border-bottom: 2px solid #555;
+        }
+        .nav a { 
+            color: white; 
+            text-decoration: none; 
+            margin: 0 5px;
+        }
+        .nav-right { 
+            float: right; /* Alinha os links de usuário à direita */
+        }
+        
+        /* Estilo do Conteúdo Principal */
+        .container { 
+            max-width: 900px; /* Largura máxima do conteúdo */
+            margin: 20px auto; /* Centraliza o conteúdo na tela */
+            padding: 20px; 
+            background-color: white; 
+            border-radius: 8px; /* Cantos arredondados */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Sombra leve */
+        }
+        
+        /* Estilos dos Alertas (Mensagens do Django) */
+        .alerta { 
+            border: 1px solid;
+            padding: 10px; 
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .alerta.error { /* Mensagens de erro */
+            background-color: #fcc; 
+            border-color: #e55; 
+            color: #a00;
+        }
+        .alerta.warning { /* Mensagens de alerta (nosso caso principal) */
+            background-color: #ffc; 
+            border-color: #e6db55; 
+            color: #665;
+        }
+        .alerta.success { /* Mensagens de sucesso */
+            background-color: #cfc; 
+            border-color: #5e5; 
+            color: #050;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="{% url 'home' %}"><strong>Busca por Processos Permanentes</strong></a>
+        
+        {% if user.is_authenticated %}
+
+            <a href="{% url 'verificar_lote' %}" style="margin-left: 20px;">[Verificar em Lote]</a>
+            
+            <div class="nav-right">
+                Olá, {{ user.username }}!
+                
+                <a href="{% url 'password_change' %}" style="margin-left: 10px;">[Alterar Senha]</a>
+                
+                <form action="{% url 'logout' %}" method="post" style="display: inline; margin-left: 10px;">
+                    {% csrf_token %}
+                    <button type="submit" style="background:none; border:none; color:white; cursor:pointer; text-decoration:underline; padding:0; font-family: Arial, sans-serif;">
+                        Sair
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="container">
+        
+        {% if messages %}
+            <div class="alertas">
+                {% for message in messages %}
+                    <div class="alerta {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+        
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+    <h2>Minhas Listagens</h2>
+    
+    <a href="{% url 'criar_listagem' %}" style="padding: 10px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+        + Criar Nova Listagem
+    </a>
+
+    <hr>
+    <p>Aqui estão as listagens que você já criou. Clique em uma para ver os detalhes e adicionar processos.</p>
+
+    <ul style="list-style: none; padding: 0;">
+        {% for listagem in listagens %}
+            <li style="padding: 15px; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 5px;">
+                <strong>
+                    <a href="{% url 'detalhe_listagem' pk=listagem.pk %}" style="font-size: 1.2em;">
+                        {{ listagem.titulo }}
+                    </a>
+                </strong>
+                <br>
+                <small>Criada em: {{ listagem.data_criacao|date:"d/m/Y" }}</small>
+            </li>
+        {% empty %}
+            <li>Você ainda não criou nenhuma listagem.</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

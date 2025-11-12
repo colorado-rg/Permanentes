@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Imprimir: {{ listagem.titulo }}</title>
+    <style>
+        /* Estilos específicos para impressão */
+        body { 
+            font-family: 'Times New Roman', Times, serif; 
+            margin: 0;
+            padding: 0;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; /* Junta as bordas da tabela */
+        }
+        th, td { 
+            border: 1px solid #000; /* Bordas pretas para impressão */
+            padding: 5px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #eee; /* Um fundo cinza claro para o cabeçalho */
+        }
+        .item-permanente { 
+            background-color: #ddd; /* Marca os itens permanentes */
+            font-weight: bold; 
+        }
+        
+        /* Define margens para a impressão física no papel */
+        @media print {
+            body { 
+                margin: 1.5cm; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <h2>Listagem: {{ listagem.titulo }}</h2>
+    <p>
+        <strong>Criador:</strong> {{ listagem.criador.username }}<br>
+        <strong>Data de Criação:</strong> {{ listagem.data_criacao|date:"d/m/Y H:i" }}
+    </p>
+
+    <hr>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nº do Processo</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+            <tr {% if item.e_permanente %} class="item-permanente" {% endif %}>
+                <td>{{ item.numero_digitado }}</td>
+                <td>
+                    {% if item.e_premanente %}
+                        <strong>ENCONTRADO (PERMANENTE)</strong>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        window.onload = function() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<style>
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; text-align: center; border-top: 10px solid #f0a500; }
+    .modal-content h2 { color: #d9534f; }
+    .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .close-btn:hover { color: black; }
+    #modal-close-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 15px; }
+    #modal-close-button:hover { background-color: #0056b3; }
+</style>
+<h2>
+    Editando Listagem: {{ listagem.titulo }}
+    <a href="{% url 'editar_listagem' pk=listagem.pk %}" style="font-size: 0.6em; font-weight: normal;">
+        [Editar Título]
+    </a>
+</h2>
+<p>Criada por: {{ listagem.criador.username }} em {{ listagem.data_criacao|date:"d/m/Y" }}</p>
+
+<a href="{% url 'imprimir_listagem' pk=listagem.pk %}" target="_blank" style="float: right; padding: 10px;">🖨️ Imprimir</a>
+<hr>
+
+<h3>Adicionar Processo (15 dígitos)</h3>
+<form method="POST" action="">
+    {% csrf_token %}
+    <label for="numero_processo">Número:</label>
+    <input type="text" id="numero_processo" name="numero_processo" maxlength="15" minlength="15" required>
+    <button type="submit" name="submit_adicionar">Adicionar</button>
+</form>
+
+<hr>
+
+<h3>Processos nesta Listagem (Itens Normais)</h3>
+<table style="width: 100%; border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th style="border: 1px solid #ddd; padding: 8px;">Número do Processo</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in itens %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ item.numero_digitado }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">
+                    <form method="POST" action="{% url 'apagar_item' item_pk=item.pk %}" style="margin: 0;">
+                        {% csrf_token %}
+                        <button type="submit" onclick="return confirm('Tem certeza que deseja apagar este item?');" style="color: red; background: none; border: none; cursor: pointer;">
+                            Apagar
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="2" style="border: 1px solid #ddd; padding: 8px;">Nenhum processo adicionado ainda.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<br>
+<a href="{% url 'home' %}">Voltar para Minhas Listagens</a>
+
+
+<div id="alertaModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2>🚨 Processo Permanente encontrado!</h2>
+        <p id="modal-message-text" style="font-size: 1.2em;"></p>
+        <button id="modal-close-button">Ok</button>
+    </div>
+</div>
+<script>
+    
+    // Função de focar o input (essencial)
+    function focarInputProcesso() {
+        try {
+            const inputCampo = document.getElementById('numero_processo');
+            inputCampo.focus();
+            inputCampo.select();
+        } catch (e) {
+            console.warn("Não foi possível focar o campo de input.", e);
+        }
+    }
+
+
+    // Evento de carregamento da página
+    document.addEventListener('DOMContentLoaded', (event) => {
+        
+        const alertaWarning = document.querySelector('.alerta.warning');
+        
+        // SE O ALERTA (MODAL) FOR ENCONTRADO...
+        if (alertaWarning) {
+            
+            const modal = document.getElementById('alertaModal');
+            const modalMessage = document.getElementById('modal-message-text');
+            const closeBtn = modal.querySelector('.close-btn');
+            const closeButton = document.getElementById('modal-close-button');
+
+            // Configurar e mostrar o modal
+            modalMessage.textContent = alertaWarning.textContent;
+            modal.style.display = 'block';
+            
+            // NENHUM SOM AQUI
+            
+            alertaWarning.style.display = 'none';
+            closeButton.focus(); // Foca o botão "Entendido"
+
+            // Define a função de fechar (ISTO É ESSENCIAL)
+            const closeModal = () => {
+                modal.style.display = 'none';
+                focarInputProcesso(); // Foca o input ao fechar
+            };
+
+            // Ligar os botões
+            closeBtn.onclick = closeModal;
+            closeButton.onclick = closeModal;
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    closeModal();
+                }
+            }
+        
+        } else {
+            // Se não houver modal, foca o input
+            focarInputProcesso();
+        }
+    });
+</script>
+{% endblock %}
