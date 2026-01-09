@@ -8,5 +8,18 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Django
+*.log
+*.pot
+local_settings.py
+db.sqlite3
+media
+
+# Ambientes Virtuais (ajusta se o nome da tua pasta for diferente)
+venv/
+env/
+.env
+.venv/
+
 # Arquivos de IDE (Ex: VS Code)
 .vscode/
