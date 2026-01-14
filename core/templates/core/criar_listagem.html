@@ -1,20 +1,199 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-    <h2>Criar Nova Listagem</h2>
-    
-    <p>Insira o título no formato NNNN/TT/AA (ex: 0123/RH/25)</p>
-
-    <form method="POST" action="">
+<div class="container mt-4">
+    <form method="post" id="form-listagem">
         {% csrf_token %}
-        <label for="titulo">Título:</label>
-        <br>
-        <input type="text" id="titulo" name="titulo" required pattern="[0-9]{4}/[a-zA-Z0-9]+/[0-9]{2}" style="padding: 8px; width: 250px;">
-        <br>
-        <small>Ex: 0001/COMPRAS/25</small>
-        <br><br>
-        
-        <button type="submit" style="padding: 10px 15px;">Salvar e Iniciar</button>
-        <a href="{% url 'home' %}" style="margin-left: 10px;">Cancelar</a>
+
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                1. Configuração da Listagem
+            </div>
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label for="titulo" class="form-label fw-bold">Título (NNNN/TT/AA)</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" placeholder="Ex: 0001/23/24" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="input_caixa" class="form-label fw-bold">Caixa de Referência</label>
+                        <input class="form-control" list="datalistOptions" id="input_caixa" placeholder="Digite a caixa..." autocomplete="off">
+                        <datalist id="datalistOptions">
+                            {% for caixa in caixas %}
+                                <option value="{{ caixa }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="col-md-4">
+                        <button type="button" id="btn-confirmar" class="btn btn-primary w-100">
+                            Confirmar e Iniciar &darr;
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="area-trabalho" style="display: none;">
+            <div class="row">
+                
+                <div class="col-md-6">
+                    <div class="card h-100 border-success">
+                        <div class="card-header bg-success text-white d-flex justify-content-between">
+                            <span>2. Adicionar Processos</span>
+                            <small>Pressione ENTER para nova linha</small>
+                        </div>
+                        <div class="card-body bg-light">
+                            <div id="container-inputs">
+                                </div>
+                            
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="adicionarCampo()">+ Adicionar Linha</button>
+                                <button type="submit" class="btn btn-success flex-grow-1">Salvar Tudo</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card h-100 border-secondary">
+                        <div class="card-header bg-secondary text-white">
+                            3. Conteúdo da Caixa: <strong id="lbl-caixa-selecionada">---</strong>
+                        </div>
+                        <div class="card-body p-0" style="height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Processo (BD)</th>
+                                        <th>Assunto</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-processos-body">
+                                    </tbody>
+                            </table>
+                            <div id="loading-msg" class="text-center p-3" style="display:none;">Carregando...</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
     </form>
+</div>
+
+<script>
+    // Variáveis globais
+    const btnConfirmar = document.getElementById('btn-confirmar');
+    const areaTrabalho = document.getElementById('area-trabalho');
+    const inputCaixa = document.getElementById('input_caixa');
+    const containerInputs = document.getElementById('container-inputs');
+    const tabelaBody = document.getElementById('tabela-processos-body');
+    const lblCaixa = document.getElementById('lbl-caixa-selecionada');
+
+    // 1. Função executada ao clicar em "Confirmar"
+    btnConfirmar.addEventListener('click', function() {
+        const caixaValor = inputCaixa.value;
+        const tituloValor = document.getElementById('titulo').value;
+
+        if (!tituloValor) {
+            alert("Por favor, preencha o título antes de continuar.");
+            return;
+        }
+
+        // Mostra a área de baixo
+        areaTrabalho.style.display = 'block';
+        
+        // Bloqueia a edição da caixa para não confundir
+        inputCaixa.disabled = true;
+        this.disabled = true;
+        this.innerText = "Configuração Bloqueada";
+        this.classList.remove('btn-primary');
+        this.classList.add('btn-secondary');
+
+        // Carrega a tabela da direita
+        carregarTabelaDireita(caixaValor);
+
+        // Adiciona o primeiro campo de input automaticamente e foca nele
+        adicionarCampo(true);
+    });
+
+    // 2. Função para adicionar campos de input dinamicamente
+    function adicionarCampo(focar = false) {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        
+        // Input do processo
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = 'processos'; // Importante para o request.POST.getlist
+        input.className = 'form-control font-monospace';
+        input.placeholder = 'Digite o número do processo (15 dígitos)';
+        input.maxLength = 15;
+        
+        // Evento: Se apertar ENTER, cria nova linha em vez de enviar o form
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Não envia o form
+                if (this.value.length > 5) { // Só cria novo se tiver digitado algo
+                     adicionarCampo(true);
+                }
+            }
+        });
+
+        // Botão de remover linha (X)
+        const btnRemove = document.createElement('button');
+        btnRemove.type = 'button';
+        btnRemove.className = 'btn btn-outline-danger';
+        btnRemove.innerText = 'X';
+        btnRemove.onclick = function() { div.remove(); };
+
+        div.appendChild(input);
+        div.appendChild(btnRemove);
+        containerInputs.appendChild(div);
+
+        if (focar) {
+            input.focus();
+        }
+    }
+
+    // 3. Função AJAX para preencher a tabela da direita
+    function carregarTabelaDireita(caixa) {
+        lblCaixa.innerText = caixa || "Sem Caixa Definida";
+        tabelaBody.innerHTML = ''; // Limpa
+        
+        if (!caixa) {
+            tabelaBody.innerHTML = '<tr><td colspan="2" class="text-muted text-center p-3">Nenhuma caixa selecionada.</td></tr>';
+            return;
+        }
+
+        document.getElementById('loading-msg').style.display = 'block';
+
+        fetch(`/ajax/get-processos/?caixa=${encodeURIComponent(caixa)}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading-msg').style.display = 'none';
+                
+                if (data.processos.length === 0) {
+                    tabelaBody.innerHTML = '<tr><td colspan="2" class="text-center p-3">Nenhum processo encontrado no banco para esta caixa.</td></tr>';
+                } else {
+                    data.processos.forEach(proc => {
+                        const row = `
+                            <tr>
+                                <td class="font-monospace">${proc.numero}</td>
+                                <td><small class="text-muted">${proc.assunto}</small></td>
+                            </tr>
+                        `;
+                        tabelaBody.innerHTML += row;
+                    });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('loading-msg').style.display = 'none';
+                tabelaBody.innerHTML = '<tr><td colspan="2" class="text-danger text-center">Erro ao buscar dados.</td></tr>';
+            });
+    }
+</script>
 {% endblock %}

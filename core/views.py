@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from .models import Listagem, ProcessoPermanente, ItemProcesso
+from django.http import JsonResponse
 import re
 
 # (Vamos precisar criar um formulário simples, mas por enquanto faremos sem)
@@ -19,19 +20,93 @@ def home(request):
 
 @login_required
 def criar_listagem(request):
+    # Busca todas as caixas para o autocomplete
+    caixas_existentes = ProcessoPermanente.objects.exclude(caixa__isnull=True).exclude(caixa='').values_list('caixa', flat=True).distinct().order_by('caixa')
+
     if request.method == 'POST':
         titulo = request.POST.get('titulo')
-        if titulo:
-            # Validação simples do formato NNNN/TT/AA (pode ser melhorada)
-            partes = titulo.split('/')
-            if len(partes) == 3 and len(partes[0]) == 4 and partes[0].isdigit() and len(partes[2]) == 2 and partes[2].isdigit():
-                listagem = Listagem.objects.create(titulo=titulo, criador=request.user)
-                return redirect('detalhe_listagem', pk=listagem.pk)
-            else:
-                messages.error(request, 'Formato do título inválido. Use NNNN/TT/AA.')
         
-    return render(request, 'core/criar_listagem.html')
+        # Pega a lista de TODOS os inputs com name="processos"
+        lista_numeros = request.POST.getlist('processos') 
+        
+        # Validação do Título
+        if not titulo:
+            messages.error(request, 'O título é obrigatório.')
+            return render(request, 'core/criar_listagem.html', {'caixas': caixas_existentes})
 
+        # Validação/Criação
+        try:
+            # 1. Criar a Listagem
+            listagem = Listagem.objects.create(titulo=titulo, criador=request.user)
+            
+            # 2. Processar cada número digitado
+            itens_criados = 0
+            for numero in lista_numeros:
+                # Remove espaços e ignora campos vazios
+                numero_limpo = numero.strip()
+                if not numero_limpo:
+                    continue
+                
+                # Verifica se é um número válido (opcional, mas recomendado)
+                if not numero_limpo.isdigit() or len(numero_limpo) != 15:
+                    messages.warning(request, f"O valor '{numero_limpo}' foi ignorado pois não parece um processo válido (15 dígitos).")
+                    continue
+
+                # Cria o item (a lógica de verificar se é permanente fica para depois ou podemos fazer agora)
+                # Aqui vamos apenas criar o item na listagem.
+                # A verificação se "e_permanente" fazemos na hora ou deixamos para a view de detalhe.
+                # Para simplificar e ser rápido, vamos criar e marcar.
+                
+                eh_perm = ProcessoPermanente.objects.filter(numero=numero_limpo).exists()
+                
+                ItemProcesso.objects.create(
+                    listagem=listagem,
+                    numero_digitado=numero_limpo,
+                    e_permanente=eh_perm
+                )
+                itens_criados += 1
+
+            messages.success(request, f'Listagem "{titulo}" criada com {itens_criados} processos!')
+            return redirect('detalhe_listagem', pk=listagem.pk)
+
+        except Exception as e:
+            messages.error(request, f'Erro ao salvar: {e}')
+    
+    return render(request, 'core/criar_listagem.html', {'caixas': caixas_existentes})
+
+# Em core/views.py
+
+@login_required
+def conferir_caixa(request):
+    """
+    View específica para auditoria de caixas.
+    """
+    # Busca todas as caixas únicas para o autocomplete (ordenadas)
+    caixas_existentes = ProcessoPermanente.objects.exclude(caixa__isnull=True).exclude(caixa='').values_list('caixa', flat=True).distinct().order_by('caixa')
+    
+    return render(request, 'core/conferir_caixa.html', {'caixas': caixas_existentes})
+
+
+@login_required
+def get_processos_caixa(request):
+    """
+    Retorna uma lista JSON de processos vinculados a uma caixa específica.
+    Chamado via AJAX pelo javascript da página.
+    """
+    caixa_nome = request.GET.get('caixa', None)
+    data = []
+
+    if caixa_nome:
+        # Filtra os processos daquela caixa e ordena pelo número
+        processos = ProcessoPermanente.objects.filter(caixa=caixa_nome).order_by('numero')
+        for proc in processos:
+            data.append({
+                'numero': proc.numero,
+                'assunto': proc.assunto or 'Sem Assunto',
+                'situacao': proc.situacao or '-'
+            })
+    
+    return JsonResponse({'processos': data})
 
 @login_required
 def detalhe_listagem(request, pk):
@@ -169,37 +244,33 @@ def apagar_item(request, item_pk): # <-- O nome do argumento 'item_pk' deve corr
 
 @login_required
 def verificar_lote(request):
-    """
-    Controla a página de verificação em lote.
-    Recebe um texto, extrai números de 15 dígitos e 
-    verifica quais deles são Permanentes.
-    """
-    context = {} # Contexto para enviar dados para o template
+    context = {} 
 
     if request.method == 'POST':
-        # 1. Obter o texto colado
         texto_colado = request.POST.get('lista_processos', '')
-        context['texto_original'] = texto_colado # Devolve o texto para a textarea
+        context['texto_original'] = texto_colado
         
-        # 2. Extrair todos os números de 15 dígitos do texto
-        # \b = fronteira da palavra (impede apanhar números dentro de outros)
-        # \d{15} = exatamente 15 dígitos
-        numeros_extraidos = re.findall(r'\b\d{15}\b', texto_colado)
+        # Extrai números de 15 dígitos
+        numeros_extraidos = re.findall(r'\d{15}', texto_colado)
         
-        if not numeros_extraidos:
-            messages.error(request, 'Nenhum número de processo (15 dígitos) válido foi encontrado no texto.')
-            return render(request, 'core/verificar_lote.html', context)
+        # Remove duplicatas
+        numeros_unicos = list(dict.fromkeys(numeros_extraidos))
+        
+        if not numeros_unicos:
+            messages.error(request, 'Nenhum número válido (15 dígitos) encontrado.')
+        else:
+            # Busca no banco
+            processos_encontrados = ProcessoPermanente.objects.filter(
+                numero__in=numeros_unicos
+            )
+            
+            lista_encontrados = [p.numero for p in processos_encontrados]
+            nao_encontrados = [num for num in numeros_unicos if num not in lista_encontrados]
 
-        # 3. Consultar o banco de dados de forma eficiente
-        # Usamos __in para verificar todos os números numa única consulta
-        # values_list('numero', flat=True) devolve uma lista simples [num1, num2]
-        permanentes_encontrados = ProcessoPermanente.objects.filter(
-            numero__in=numeros_extraidos
-        ).values_list('numero', flat=True)
-        
-        # 4. Enviar os resultados de volta para o template
-        context['resultados_encontrados'] = list(permanentes_encontrados)
-        context['total_verificados'] = len(numeros_extraidos)
+            context['sucesso'] = True
+            context['processos'] = processos_encontrados
+            context['nao_encontrados'] = nao_encontrados
+            context['qtd_verificados'] = len(numeros_unicos)
+            context['qtd_encontrados'] = len(processos_encontrados)
 
-    # Se for GET, ou depois do POST, renderiza a página
     return render(request, 'core/verificar_lote.html', context)

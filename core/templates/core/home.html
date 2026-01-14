@@ -1,28 +1,91 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-    <h2>Minhas Listagens</h2>
+<style>
+    /* Estilo para centralizar verticalmente na tela */
+    .vertical-center {
+        min-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* Cartões */
+    .hover-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+        border-width: 0 0 4px 0;
+    }
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    }
     
-    <a href="{% url 'criar_listagem' %}" style="padding: 10px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-        + Criar Nova Listagem
-    </a>
+    /* Ajustes finos de fonte */
+    .titulo-principal {
+        font-weight: 700;
+        color: #0d6efd;
+    }
+    .subtitulo {
+        font-weight: 300;
+        letter-spacing: 1px;
+    }
+</style>
 
-    <hr>
-    <p>Aqui estão as listagens que você já criou. Clique em uma para ver os detalhes e adicionar processos.</p>
+<div class="container vertical-center">
 
-    <ul style="list-style: none; padding: 0;">
-        {% for listagem in listagens %}
-            <li style="padding: 15px; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 5px;">
-                <strong>
-                    <a href="{% url 'detalhe_listagem' pk=listagem.pk %}" style="font-size: 1.2em;">
-                        {{ listagem.titulo }}
+    <div class="text-center mb-4 animate__animated animate__fadeInDown">
+        <h2 class="titulo-principal mb-2">
+            Consulta de Processos Permanentes
+        </h2>
+        <h5 class="text-secondary subtitulo border-bottom border-secondary pb-2 d-inline-block px-4">
+            Subseção Judiciária de Pelotas
+        </h5>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        
+        <div class="col-md-5 col-lg-4">
+            <div class="card h-100 shadow-sm hover-card border-primary">
+                <div class="card-body text-center p-4 d-flex flex-column">
+                    
+                    <div class="display-4 mb-3">📦</div>
+                    
+                    <h4 class="card-title fw-bold text-primary">Consultar Caixa</h4>
+                    <p class="card-text text-muted mb-3 small">
+                        Conferência física dos processos dentro de uma caixa específica.
+                    </p>
+                    
+                    <a href="{% url 'conferir_caixa' %}"  class="btn btn-outline-primary w-100 stretched-link fw-bold mt-auto">
+                        ACESSAR
                     </a>
-                </strong>
-                <br>
-                <small>Criada em: {{ listagem.data_criacao|date:"d/m/Y" }}</small>
-            </li>
-        {% empty %}
-            <li>Você ainda não criou nenhuma listagem.</li>
-        {% endfor %}
-    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5 col-lg-4">
+            <div class="card h-100 shadow-sm hover-card border-success">
+                <div class="card-body text-center p-4 d-flex flex-column">
+                    
+                    <div class="display-4 mb-3">🔍</div>
+                    
+                    <h4 class="card-title fw-bold text-success">Verificação em Lote</h4>
+                    <p class="card-text text-muted mb-3 small">
+                        Pesquisa de múltiplos processos a partir de uma lista colada.
+                    </p>
+                    
+                    <a href="{% url 'verificar_lote' %}" class="btn btn-outline-success w-100 stretched-link fw-bold mt-auto">
+                        ACESSAR
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="text-center mt-5 text-muted" style="font-size: 0.8rem;">
+        <p>&copy; {% now "Y" %} Charlon Santos</p>
+    </div>
+
+</div>
 {% endblock %}

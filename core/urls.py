@@ -9,4 +9,6 @@ urlpatterns = [
     path('listagem/<int:pk>/editar/', views.editar_listagem, name='editar_listagem'),
     path('item/<int:item_pk>/apagar/', views.apagar_item, name='apagar_item'),
     path('verificar-em-lote/', views.verificar_lote, name='verificar_lote'),
+    path('ajax/get-processos/', views.get_processos_caixa, name='get_processos_caixa'),
+    path('conferir-caixa/', views.conferir_caixa, name='conferir_caixa'),
 ]

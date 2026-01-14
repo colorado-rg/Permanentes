@@ -1,0 +1,320 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<style>
+    /* ESTILOS DE IMPRESSÃO */
+    @media print {
+        body * { visibility: hidden; }
+        .navbar, #tela-selecao, #tela-conferencia { display: none !important; }
+        #tela-relatorio, #tela-relatorio * { visibility: visible; }
+        #tela-relatorio { position: absolute; left: 0; top: 0; width: 100%; display: block !important; border: none !important; }
+        .no-print { display: none !important; }
+        .list-group-item { padding: 2px 10px !important; border: none !important; font-size: 12px !important; }
+        h3, h4 { margin-top: 10px; margin-bottom: 5px; }
+    }
+</style>
+
+<div class="container mt-4">
+
+    <div id="tela-selecao" class="card shadow-sm mx-auto" style="max-width: 600px;">
+        <div class="card-header bg-dark text-white text-center">
+            <h4>Conferir Caixa</h4>
+        </div>
+        <div class="card-body p-4 text-center">
+            <label for="input_caixa" class="form-label mb-2">Qual caixa deseja conferir?</label>
+            
+            <input class="form-control form-control-lg text-center mb-3" list="lista-caixas" id="input_caixa" placeholder="Digite o nº da Caixa..." autocomplete="off">
+            <datalist id="lista-caixas">
+                {% for caixa in caixas %}
+                    <option value="{{ caixa }}">
+                {% endfor %}
+            </datalist>
+            
+            <button id="btn-confirmar-caixa" class="btn btn-primary w-100">
+                CONFIRMAR (ENTER)
+            </button>
+        </div>
+    </div>
+
+
+    <div id="tela-conferencia" style="display: none;">
+        
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="m-0">Caixa: <span id="titulo-caixa" class="text-primary fw-bold">---</span></h3>
+            <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">Sair / Trocar</button>
+        </div>
+
+        <div class="card mb-3 bg-light border-0">
+            <div class="card-body p-3">
+                <div class="input-group input-group-lg">
+                    <input type="text" 
+                           id="input_processo" 
+                           class="form-control font-monospace" 
+                           placeholder="Bipe ou digite o processo (Só números)" 
+                           maxlength="15"
+                           inputmode="numeric" 
+                           pattern="[0-9]*">
+                    
+                    <button id="btn-ok-processo" class="btn btn-success" type="button">OK</button>
+                    
+                    <button id="btn-finalizar" class="btn btn-dark ms-2 fw-bold" type="button">
+                        FINALIZAR CAIXA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: row; gap: 20px; width: 100%;">
+            
+            <div style="flex: 1; width: 50%;"> 
+                <div class="card h-100 border-success">
+                    <div class="card-header bg-success text-white text-center py-1">
+                        <strong>CONFERIDOS</strong> (<span id="count-confirmados">0</span>)
+                    </div>
+                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush font-monospace text-center" id="lista-esquerda">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div style="flex: 1; width: 50%;">
+                <div class="card h-100 border-secondary">
+                    <div class="card-header bg-secondary text-white text-center py-1">
+                        <strong>RESTANTES NA CAIXA</strong> (<span id="count-banco">0</span>)
+                    </div>
+                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush font-monospace text-center" id="lista-direita">
+                            <li class="list-group-item text-muted">Carregando...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="tela-relatorio" style="display: none;" class="bg-white p-4 border rounded">
+        <div class="text-center border-bottom mb-4 pb-2">
+            <h2>Relatório de Conferência</h2>
+            <h4 class="text-muted">Caixa: <strong id="relatorio-titulo-caixa" class="text-dark">---</strong></h4>
+            <p class="text-secondary small">Data da conferência: <span id="data-impressao"></span></p>
+        </div>
+
+        <div id="conteudo-relatorio" class="mb-4">
+            </div>
+
+        <div class="mt-5 text-center no-print">
+            <button onclick="window.print()" class="btn btn-primary btn-lg me-3">🖨️ IMPRIMIR</button>
+            <button onclick="location.reload()" class="btn btn-secondary btn-lg">Nova Conferência</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Elementos
+        const telaSelecao = document.getElementById('tela-selecao');
+        const telaConferencia = document.getElementById('tela-conferencia');
+        const telaRelatorio = document.getElementById('tela-relatorio');
+        
+        const inputCaixa = document.getElementById('input_caixa');
+        const btnConfirmarCaixa = document.getElementById('btn-confirmar-caixa');
+        const tituloCaixa = document.getElementById('titulo-caixa');
+        
+        const inputProcesso = document.getElementById('input_processo');
+        const btnOkProcesso = document.getElementById('btn-ok-processo');
+        const btnFinalizar = document.getElementById('btn-finalizar');
+        
+        const listaEsquerda = document.getElementById('lista-esquerda');
+        const listaDireita = document.getElementById('lista-direita');
+        const countConfirmados = document.getElementById('count-confirmados');
+        const countBanco = document.getElementById('count-banco');
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // --- BLOQUEIO DE LETRAS NO INPUT ---
+        // Este evento roda a cada caracter digitado e remove o que não for número
+        inputProcesso.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+
+        // --- 1. CONFIGURAÇÃO DA CAIXA ---
+        inputCaixa.addEventListener('keydown', (e) => { if(e.key === 'Enter') confirmingCaixa(); });
+        btnConfirmarCaixa.addEventListener('click', confirmingCaixa);
+
+        function confirmingCaixa() {
+            const caixa = inputCaixa.value.trim();
+            if (!caixa) { alert('Informe a caixa.'); return; }
+
+            telaSelecao.style.display = 'none';
+            telaConferencia.style.display = 'block';
+            tituloCaixa.innerText = caixa;
+            document.getElementById('relatorio-titulo-caixa').innerText = caixa;
+
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+
+            carregarListaBanco(caixa);
+            setTimeout(() => inputProcesso.focus(), 100);
+        }
+
+        // --- 2. ADIÇÃO DE PROCESSOS ---
+        inputProcesso.addEventListener('keydown', (e) => { if(e.key === 'Enter') addProcesso(); });
+        btnOkProcesso.addEventListener('click', addProcesso);
+
+        function addProcesso() {
+            // Garante que só há números
+            let numero = inputProcesso.value.replace(/\D/g, ''); 
+            if (!numero) return;
+
+            const liEsquerda = document.createElement('li');
+            liEsquerda.className = 'list-group-item fw-bold animate__animated animate__fadeIn';
+            liEsquerda.innerText = numero;
+            
+            listaEsquerda.insertBefore(liEsquerda, listaEsquerda.firstChild);
+            
+            countConfirmados.innerText = parseInt(countConfirmados.innerText) + 1;
+
+            verificarERemover(numero, liEsquerda);
+
+            inputProcesso.value = '';
+            inputProcesso.focus();
+        }
+
+        // --- 3. LÓGICA DE MOVIMENTAÇÃO ---
+        function verificarERemover(numero, elementoEsquerda) {
+            const itemDireita = document.getElementById('banco-' + numero);
+
+            if (itemDireita) {
+                // SUCESSO (Remove da direita)
+                itemDireita.remove();
+                
+                let totalRestante = parseInt(countBanco.innerText);
+                countBanco.innerText = Math.max(0, totalRestante - 1);
+
+                elementoEsquerda.classList.add('list-group-item-success'); 
+                elementoEsquerda.innerHTML += ' <span class="badge bg-success float-end">OK</span>';
+
+            } else {
+                // ERRO (Novo / Intruso)
+                tocarSomAlerta();
+                elementoEsquerda.classList.add('list-group-item-warning');
+                elementoEsquerda.dataset.status = "novo";
+                elementoEsquerda.innerHTML += ' <span class="badge bg-danger float-end">NOVO</span>';
+            }
+        }
+
+        // --- 4. RELATÓRIO E FINALIZAÇÃO ---
+        btnFinalizar.addEventListener('click', function() {
+            const caixaNome = tituloCaixa.innerText;
+            const hoje = new Date().toLocaleString('pt-BR');
+            document.getElementById('data-impressao').innerText = hoje;
+
+            // Coleta dados
+            const listaNovos = document.querySelectorAll('#lista-esquerda li[data-status="novo"]');
+            const qtdNovos = listaNovos.length;
+            const listaFaltantes = document.querySelectorAll('#lista-direita li[id^="banco-"]');
+            const qtdFaltantes = listaFaltantes.length;
+
+            const conteudoDiv = document.getElementById('conteudo-relatorio');
+            let htmlFinal = '';
+
+            if (qtdNovos === 0 && qtdFaltantes === 0) {
+                // SUCESSO TOTAL
+                htmlFinal = `
+                    <div class="alert alert-success text-center p-4 border border-success">
+                        <h1 class="display-4">✅</h1>
+                        <h3 class="fw-bold">Caixa conferida com sucesso!</h3>
+                        <p class="fs-5">Todos os processos físicos conferem com a listagem do banco de dados.</p>
+                    </div>
+                `;
+            } else {
+                // COM ALTERAÇÕES
+                htmlFinal = `<h4 class="text-danger mb-4 text-center">⚠️ A caixa apresenta as seguintes alterações:</h4>`;
+                htmlFinal += `<div class="row">`;
+
+                if (qtdNovos > 0) {
+                    htmlFinal += `
+                        <div class="col-6">
+                            <div class="card border-warning h-100">
+                                <div class="card-header bg-warning text-dark text-center fw-bold">
+                                    NOVOS PROCESSOS (${qtdNovos})
+                                    <br><small>Encontrados fisicamente, mas não constavam na lista.</small>
+                                </div>
+                                <ul class="list-group list-group-flush text-center font-monospace small">
+                    `;
+                    listaNovos.forEach(item => {
+                        const num = item.innerText.replace("NOVO", "").trim();
+                        htmlFinal += `<li class="list-group-item py-1">${num}</li>`;
+                    });
+                    htmlFinal += `</ul></div></div>`;
+                }
+
+                if (qtdFaltantes > 0) {
+                    htmlFinal += `
+                        <div class="col-6">
+                            <div class="card border-danger h-100">
+                                <div class="card-header bg-danger text-white text-center fw-bold">
+                                    NÃO ENCONTRADOS (${qtdFaltantes})
+                                    <br><small>Constam na lista, mas não foram bipados.</small>
+                                </div>
+                                <ul class="list-group list-group-flush text-center font-monospace small">
+                    `;
+                    listaFaltantes.forEach(item => {
+                        htmlFinal += `<li class="list-group-item py-1">${item.innerText}</li>`;
+                    });
+                    htmlFinal += `</ul></div></div>`;
+                }
+                
+                htmlFinal += `</div>`; 
+            }
+
+            conteudoDiv.innerHTML = htmlFinal;
+
+            telaConferencia.style.display = 'none';
+            telaRelatorio.style.display = 'block';
+        });
+
+        // --- FUNÇÕES UTILITÁRIAS ---
+        function tocarSomAlerta() {
+            try {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.value = 150;
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) { console.error(e); }
+        }
+
+        function carregarListaBanco(caixa) {
+            fetch(`/ajax/get-processos/?caixa=${encodeURIComponent(caixa)}`)
+                .then(res => res.json())
+                .then(data => {
+                    listaDireita.innerHTML = '';
+                    countBanco.innerText = data.processos.length;
+                    if (data.processos.length === 0) {
+                        listaDireita.innerHTML = '<li class="list-group-item text-danger">Caixa vazia.</li>';
+                        return;
+                    }
+                    data.processos.forEach(proc => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item';
+                        li.id = 'banco-' + proc.numero;
+                        li.innerText = proc.numero;
+                        listaDireita.appendChild(li);
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    listaDireita.innerHTML = '<li class="list-group-item text-danger">Erro de conexão.</li>';
+                });
+        }
+    });
+</script>
+{% endblock %}
