@@ -273,4 +273,4 @@ def verificar_lote(request):
             context['qtd_verificados'] = len(numeros_unicos)
             context['qtd_encontrados'] = len(processos_encontrados)
 
-    return render(request, 'core/verificar_lote.html', context)
+    return render(request, 'core/verificar_lote.html', context)     

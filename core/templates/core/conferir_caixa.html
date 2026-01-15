@@ -50,10 +50,9 @@
                     <input type="text" 
                            id="input_processo" 
                            class="form-control font-monospace" 
-                           placeholder="Bipe ou digite o processo (Só números)" 
-                           maxlength="15"
-                           inputmode="numeric" 
-                           pattern="[0-9]*">
+                           placeholder="Bipe ou digite o processo" 
+                           maxlength="25" 
+                           autocomplete="off">
                     
                     <button id="btn-ok-processo" class="btn btn-success" type="button">OK</button>
                     
@@ -61,6 +60,7 @@
                         FINALIZAR CAIXA
                     </button>
                 </div>
+                <div id="msg-erro" class="text-danger fw-bold mt-2 text-center" style="min-height: 24px;"></div>
             </div>
         </div>
 
@@ -126,6 +126,7 @@
         const inputProcesso = document.getElementById('input_processo');
         const btnOkProcesso = document.getElementById('btn-ok-processo');
         const btnFinalizar = document.getElementById('btn-finalizar');
+        const msgErro = document.getElementById('msg-erro');
         
         const listaEsquerda = document.getElementById('lista-esquerda');
         const listaDireita = document.getElementById('lista-direita');
@@ -134,10 +135,18 @@
 
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // --- BLOQUEIO DE LETRAS NO INPUT ---
-        // Este evento roda a cada caracter digitado e remove o que não for número
+        // Bloqueia letras
         inputProcesso.addEventListener('input', function() {
             this.value = this.value.replace(/\D/g, '');
+            msgErro.innerText = ''; // Limpa msg de erro ao digitar
+        });
+        
+        // Garante foco ao clicar na tela (UX)
+        telaConferencia.addEventListener('click', function(e) {
+            // Se não clicou em um botão, foca no input
+            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                inputProcesso.focus();
+            }
         });
 
         // --- 1. CONFIGURAÇÃO DA CAIXA ---
@@ -164,30 +173,79 @@
         btnOkProcesso.addEventListener('click', addProcesso);
 
         function addProcesso() {
-            // Garante que só há números
-            let numero = inputProcesso.value.replace(/\D/g, ''); 
-            if (!numero) return;
+            let numeroOriginal = inputProcesso.value.trim().replace(/\D/g, ''); 
+            let numeroProcessado = numeroOriginal;
+            
+            if (!numeroOriginal) return;
 
+            // --- REGRA 3: CORREÇÃO DE ANO (98->1998, 99->1999) ---
+            if (numeroOriginal.startsWith('98') && numeroOriginal.length > 2) {
+                numeroProcessado = '1998' + numeroOriginal.substring(2);
+            } else if (numeroOriginal.startsWith('99') && numeroOriginal.length > 2) {
+                numeroProcessado = '1999' + numeroOriginal.substring(2);
+            }
+
+            // --- REGRA 1: IMPEDIR REPETIDOS ---
+            // Verifica se já existe na lista da ESQUERDA
+            const itensEsquerda = listaEsquerda.getElementsByTagName('li');
+            for (let item of itensEsquerda) {
+                // Compara o texto do item (que pode ter o texto NOVO ou OK, então limpamos)
+                let numExistente = item.innerText.replace("OK", "").replace("NOVO", "").trim();
+                
+                if (numExistente === numeroProcessado) {
+                    tocarSomAlerta();
+                    msgErro.innerText = `Processo ${numeroProcessado} já foi lido!`;
+                    inputProcesso.value = '';
+                    inputProcesso.focus();
+                    return; // Para tudo
+                }
+            }
+
+            // --- ADICIONA VISUALMENTE ---
             const liEsquerda = document.createElement('li');
             liEsquerda.className = 'list-group-item fw-bold animate__animated animate__fadeIn';
-            liEsquerda.innerText = numero;
+            liEsquerda.innerText = numeroProcessado;
             
             listaEsquerda.insertBefore(liEsquerda, listaEsquerda.firstChild);
             
             countConfirmados.innerText = parseInt(countConfirmados.innerText) + 1;
 
-            verificarERemover(numero, liEsquerda);
+            // --- VERIFICAÇÃO INTELIGENTE NA DIREITA ---
+            verificarERemover(numeroProcessado, liEsquerda);
 
+            // --- REGRA 2: FOCO ---
             inputProcesso.value = '';
+            msgErro.innerText = '';
             inputProcesso.focus();
         }
 
-        // --- 3. LÓGICA DE MOVIMENTAÇÃO ---
+        // --- 3. LÓGICA DE MOVIMENTAÇÃO E COMPARAÇÃO ---
         function verificarERemover(numero, elementoEsquerda) {
-            const itemDireita = document.getElementById('banco-' + numero);
+            
+            // TENTATIVA 1: Busca Exata pelo ID
+            let itemDireita = document.getElementById('banco-' + numero);
+
+            // TENTATIVA 2: Busca por Raiz (ignorando último dígito) se a tentativa 1 falhar
+            // Isso atende à regra de desconsiderar verificador nos processos antigos convertidos
+            if (!itemDireita) {
+                const raizInput = numero.slice(0, -1); // Remove último dígito do input
+                const listaItens = listaDireita.getElementsByTagName('li');
+                
+                for (let li of listaItens) {
+                    // Pega o número do banco
+                    const numBanco = li.innerText.trim();
+                    // Remove último dígito do banco
+                    const raizBanco = numBanco.slice(0, -1);
+                    
+                    if (raizInput === raizBanco) {
+                        itemDireita = li; // ACHOU!
+                        break;
+                    }
+                }
+            }
 
             if (itemDireita) {
-                // SUCESSO (Remove da direita)
+                // SUCESSO
                 itemDireita.remove();
                 
                 let totalRestante = parseInt(countBanco.innerText);
@@ -195,9 +253,8 @@
 
                 elementoEsquerda.classList.add('list-group-item-success'); 
                 elementoEsquerda.innerHTML += ' <span class="badge bg-success float-end">OK</span>';
-
             } else {
-                // ERRO (Novo / Intruso)
+                // ERRO (NOVO)
                 tocarSomAlerta();
                 elementoEsquerda.classList.add('list-group-item-warning');
                 elementoEsquerda.dataset.status = "novo";
@@ -211,7 +268,6 @@
             const hoje = new Date().toLocaleString('pt-BR');
             document.getElementById('data-impressao').innerText = hoje;
 
-            // Coleta dados
             const listaNovos = document.querySelectorAll('#lista-esquerda li[data-status="novo"]');
             const qtdNovos = listaNovos.length;
             const listaFaltantes = document.querySelectorAll('#lista-direita li[id^="banco-"]');
@@ -221,7 +277,6 @@
             let htmlFinal = '';
 
             if (qtdNovos === 0 && qtdFaltantes === 0) {
-                // SUCESSO TOTAL
                 htmlFinal = `
                     <div class="alert alert-success text-center p-4 border border-success">
                         <h1 class="display-4">✅</h1>
@@ -230,7 +285,6 @@
                     </div>
                 `;
             } else {
-                // COM ALTERAÇÕES
                 htmlFinal = `<h4 class="text-danger mb-4 text-center">⚠️ A caixa apresenta as seguintes alterações:</h4>`;
                 htmlFinal += `<div class="row">`;
 
@@ -269,9 +323,7 @@
                 
                 htmlFinal += `</div>`; 
             }
-
             conteudoDiv.innerHTML = htmlFinal;
-
             telaConferencia.style.display = 'none';
             telaRelatorio.style.display = 'block';
         });
