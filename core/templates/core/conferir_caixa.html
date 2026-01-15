@@ -16,29 +16,19 @@
 
 <div class="container mt-4">
 
+    <input type="hidden" id="usuario-logado" value="{{ user.get_full_name|default:user.username|upper }}">
+
     <div id="tela-selecao" class="card shadow-sm mx-auto" style="max-width: 600px;">
-        <div class="card-header bg-dark text-white text-center">
-            <h4>Conferir Caixa</h4>
-        </div>
+        <div class="card-header bg-dark text-white text-center"><h4>Conferir Caixa</h4></div>
         <div class="card-body p-4 text-center">
             <label for="input_caixa" class="form-label mb-2">Qual caixa deseja conferir?</label>
-            
             <input class="form-control form-control-lg text-center mb-3" list="lista-caixas" id="input_caixa" placeholder="Digite o nº da Caixa..." autocomplete="off">
-            <datalist id="lista-caixas">
-                {% for caixa in caixas %}
-                    <option value="{{ caixa }}">
-                {% endfor %}
-            </datalist>
-            
-            <button id="btn-confirmar-caixa" class="btn btn-primary w-100">
-                CONFIRMAR (ENTER)
-            </button>
+            <datalist id="lista-caixas">{% for caixa in caixas %}<option value="{{ caixa }}">{% endfor %}</datalist>
+            <button id="btn-confirmar-caixa" class="btn btn-primary w-100">CONFIRMAR (ENTER)</button>
         </div>
     </div>
 
-
     <div id="tela-conferencia" style="display: none;">
-        
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="m-0">Caixa: <span id="titulo-caixa" class="text-primary fw-bold">---</span></h3>
             <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">Sair / Trocar</button>
@@ -47,50 +37,27 @@
         <div class="card mb-3 bg-light border-0">
             <div class="card-body p-3">
                 <div class="input-group input-group-lg">
-                    <input type="text" 
-                           id="input_processo" 
-                           class="form-control font-monospace" 
-                           placeholder="Bipe ou digite o processo" 
-                           maxlength="25" 
-                           autocomplete="off">
-                    
+                    <input type="text" id="input_processo" class="form-control font-monospace" placeholder="Bipe ou digite o processo" maxlength="25" autocomplete="off">
                     <button id="btn-ok-processo" class="btn btn-success" type="button">OK</button>
-                    
-                    <button id="btn-finalizar" class="btn btn-dark ms-2 fw-bold" type="button">
-                        FINALIZAR CAIXA
-                    </button>
+                    <button id="btn-finalizar" class="btn btn-dark ms-2 fw-bold" type="button">FINALIZAR CAIXA</button>
                 </div>
                 <div id="msg-erro" class="text-danger fw-bold mt-2 text-center" style="min-height: 24px;"></div>
             </div>
         </div>
 
         <div style="display: flex; flex-direction: row; gap: 20px; width: 100%;">
-            
             <div style="flex: 1; width: 50%;"> 
                 <div class="card h-100 border-success">
-                    <div class="card-header bg-success text-white text-center py-1">
-                        <strong>CONFERIDOS</strong> (<span id="count-confirmados">0</span>)
-                    </div>
-                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;">
-                        <ul class="list-group list-group-flush font-monospace text-center" id="lista-esquerda">
-                        </ul>
-                    </div>
+                    <div class="card-header bg-success text-white text-center py-1"><strong>CONFERIDOS</strong> (<span id="count-confirmados">0</span>)</div>
+                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;"><ul class="list-group list-group-flush font-monospace text-center" id="lista-esquerda"></ul></div>
                 </div>
             </div>
-
             <div style="flex: 1; width: 50%;">
                 <div class="card h-100 border-secondary">
-                    <div class="card-header bg-secondary text-white text-center py-1">
-                        <strong>RESTANTES NA CAIXA</strong> (<span id="count-banco">0</span>)
-                    </div>
-                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;">
-                        <ul class="list-group list-group-flush font-monospace text-center" id="lista-direita">
-                            <li class="list-group-item text-muted">Carregando...</li>
-                        </ul>
-                    </div>
+                    <div class="card-header bg-secondary text-white text-center py-1"><strong>RESTANTES NA CAIXA</strong> (<span id="count-banco">0</span>)</div>
+                    <div class="card-body p-0" style="height: 500px; overflow-y: auto;"><ul class="list-group list-group-flush font-monospace text-center" id="lista-direita"><li class="list-group-item text-muted">Carregando...</li></ul></div>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -98,23 +65,21 @@
         <div class="text-center border-bottom mb-4 pb-2">
             <h2>Relatório de Conferência</h2>
             <h4 class="text-muted">Caixa: <strong id="relatorio-titulo-caixa" class="text-dark">---</strong></h4>
-            <p class="text-secondary small">Data da conferência: <span id="data-impressao"></span></p>
+            
+            <div id="info-auditoria" class="text-secondary small mt-2"></div>
         </div>
 
-        <div id="conteudo-relatorio" class="mb-4">
-            </div>
+        <div id="conteudo-relatorio" class="mb-4"></div>
 
         <div class="mt-5 text-center no-print">
             <button onclick="window.print()" class="btn btn-primary btn-lg me-3">🖨️ IMPRIMIR</button>
             <button onclick="location.reload()" class="btn btn-secondary btn-lg">Nova Conferência</button>
         </div>
     </div>
-
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Elementos
         const telaSelecao = document.getElementById('tela-selecao');
         const telaConferencia = document.getElementById('tela-conferencia');
         const telaRelatorio = document.getElementById('tela-relatorio');
@@ -132,129 +97,74 @@
         const listaDireita = document.getElementById('lista-direita');
         const countConfirmados = document.getElementById('count-confirmados');
         const countBanco = document.getElementById('count-banco');
-
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Bloqueia letras
-        inputProcesso.addEventListener('input', function() {
-            this.value = this.value.replace(/\D/g, '');
-            msgErro.innerText = ''; // Limpa msg de erro ao digitar
-        });
-        
-        // Garante foco ao clicar na tela (UX)
-        telaConferencia.addEventListener('click', function(e) {
-            // Se não clicou em um botão, foca no input
-            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                inputProcesso.focus();
-            }
-        });
+        // UX: Bloqueia letras e mantém foco
+        inputProcesso.addEventListener('input', function() { this.value = this.value.replace(/\D/g, ''); msgErro.innerText = ''; });
+        telaConferencia.addEventListener('click', function(e) { if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') { inputProcesso.focus(); }});
 
-        // --- 1. CONFIGURAÇÃO DA CAIXA ---
+        // 1. CONFIRMAR CAIXA
         inputCaixa.addEventListener('keydown', (e) => { if(e.key === 'Enter') confirmingCaixa(); });
         btnConfirmarCaixa.addEventListener('click', confirmingCaixa);
 
         function confirmingCaixa() {
             const caixa = inputCaixa.value.trim();
             if (!caixa) { alert('Informe a caixa.'); return; }
-
             telaSelecao.style.display = 'none';
             telaConferencia.style.display = 'block';
             tituloCaixa.innerText = caixa;
             document.getElementById('relatorio-titulo-caixa').innerText = caixa;
-
             if (audioCtx.state === 'suspended') { audioCtx.resume(); }
-
             carregarListaBanco(caixa);
             setTimeout(() => inputProcesso.focus(), 100);
         }
 
-        // --- 2. ADIÇÃO DE PROCESSOS ---
+        // 2. ADICIONAR PROCESSO
         inputProcesso.addEventListener('keydown', (e) => { if(e.key === 'Enter') addProcesso(); });
         btnOkProcesso.addEventListener('click', addProcesso);
 
         function addProcesso() {
             let numeroOriginal = inputProcesso.value.trim().replace(/\D/g, ''); 
             let numeroProcessado = numeroOriginal;
-            
             if (!numeroOriginal) return;
 
-            // --- REGRA 3: CORREÇÃO DE ANO (98->1998, 99->1999) ---
-            if (numeroOriginal.startsWith('98') && numeroOriginal.length > 2) {
-                numeroProcessado = '1998' + numeroOriginal.substring(2);
-            } else if (numeroOriginal.startsWith('99') && numeroOriginal.length > 2) {
-                numeroProcessado = '1999' + numeroOriginal.substring(2);
-            }
+            if (numeroOriginal.startsWith('98') && numeroOriginal.length > 2) numeroProcessado = '1998' + numeroOriginal.substring(2);
+            else if (numeroOriginal.startsWith('99') && numeroOriginal.length > 2) numeroProcessado = '1999' + numeroOriginal.substring(2);
 
-            // --- REGRA 1: IMPEDIR REPETIDOS ---
-            // Verifica se já existe na lista da ESQUERDA
             const itensEsquerda = listaEsquerda.getElementsByTagName('li');
             for (let item of itensEsquerda) {
-                // Compara o texto do item (que pode ter o texto NOVO ou OK, então limpamos)
-                let numExistente = item.innerText.replace("OK", "").replace("NOVO", "").trim();
-                
-                if (numExistente === numeroProcessado) {
+                if (item.innerText.replace("OK", "").replace("NOVO", "").trim() === numeroProcessado) {
                     tocarSomAlerta();
                     msgErro.innerText = `Processo ${numeroProcessado} já foi lido!`;
-                    inputProcesso.value = '';
-                    inputProcesso.focus();
-                    return; // Para tudo
+                    inputProcesso.value = ''; inputProcesso.focus(); return;
                 }
             }
 
-            // --- ADICIONA VISUALMENTE ---
-            const liEsquerda = document.createElement('li');
-            liEsquerda.className = 'list-group-item fw-bold animate__animated animate__fadeIn';
-            liEsquerda.innerText = numeroProcessado;
-            
-            listaEsquerda.insertBefore(liEsquerda, listaEsquerda.firstChild);
-            
+            const li = document.createElement('li');
+            li.className = 'list-group-item fw-bold animate__animated animate__fadeIn';
+            li.innerText = numeroProcessado;
+            listaEsquerda.insertBefore(li, listaEsquerda.firstChild);
             countConfirmados.innerText = parseInt(countConfirmados.innerText) + 1;
-
-            // --- VERIFICAÇÃO INTELIGENTE NA DIREITA ---
-            verificarERemover(numeroProcessado, liEsquerda);
-
-            // --- REGRA 2: FOCO ---
-            inputProcesso.value = '';
-            msgErro.innerText = '';
-            inputProcesso.focus();
+            verificarERemover(numeroProcessado, li);
+            inputProcesso.value = ''; msgErro.innerText = ''; inputProcesso.focus();
         }
 
-        // --- 3. LÓGICA DE MOVIMENTAÇÃO E COMPARAÇÃO ---
         function verificarERemover(numero, elementoEsquerda) {
-            
-            // TENTATIVA 1: Busca Exata pelo ID
             let itemDireita = document.getElementById('banco-' + numero);
-
-            // TENTATIVA 2: Busca por Raiz (ignorando último dígito) se a tentativa 1 falhar
-            // Isso atende à regra de desconsiderar verificador nos processos antigos convertidos
             if (!itemDireita) {
-                const raizInput = numero.slice(0, -1); // Remove último dígito do input
+                const raizInput = numero.slice(0, -1);
                 const listaItens = listaDireita.getElementsByTagName('li');
-                
                 for (let li of listaItens) {
-                    // Pega o número do banco
-                    const numBanco = li.innerText.trim();
-                    // Remove último dígito do banco
-                    const raizBanco = numBanco.slice(0, -1);
-                    
-                    if (raizInput === raizBanco) {
-                        itemDireita = li; // ACHOU!
-                        break;
-                    }
+                    if (li.innerText.trim().slice(0, -1) === raizInput) { itemDireita = li; break; }
                 }
             }
 
             if (itemDireita) {
-                // SUCESSO
                 itemDireita.remove();
-                
-                let totalRestante = parseInt(countBanco.innerText);
-                countBanco.innerText = Math.max(0, totalRestante - 1);
-
+                countBanco.innerText = Math.max(0, parseInt(countBanco.innerText) - 1);
                 elementoEsquerda.classList.add('list-group-item-success'); 
                 elementoEsquerda.innerHTML += ' <span class="badge bg-success float-end">OK</span>';
             } else {
-                // ERRO (NOVO)
                 tocarSomAlerta();
                 elementoEsquerda.classList.add('list-group-item-warning');
                 elementoEsquerda.dataset.status = "novo";
@@ -262,85 +172,59 @@
             }
         }
 
-        // --- 4. RELATÓRIO E FINALIZAÇÃO ---
+        // 3. FINALIZAR E GERAR RELATÓRIO
         btnFinalizar.addEventListener('click', function() {
             const caixaNome = tituloCaixa.innerText;
             const hoje = new Date().toLocaleString('pt-BR');
-            document.getElementById('data-impressao').innerText = hoje;
+            const usuario = document.getElementById('usuario-logado').value; // PEGA O NOME DO INPUT HIDDEN
+
+            // Preenche os dados de cabeçalho
+            document.getElementById('info-auditoria').innerHTML = `
+                Responsável: <strong>${usuario}</strong><br>
+                Data/Hora: ${hoje}
+            `;
 
             const listaNovos = document.querySelectorAll('#lista-esquerda li[data-status="novo"]');
-            const qtdNovos = listaNovos.length;
             const listaFaltantes = document.querySelectorAll('#lista-direita li[id^="banco-"]');
-            const qtdFaltantes = listaFaltantes.length;
-
-            const conteudoDiv = document.getElementById('conteudo-relatorio');
+            
             let htmlFinal = '';
-
-            if (qtdNovos === 0 && qtdFaltantes === 0) {
+            if (listaNovos.length === 0 && listaFaltantes.length === 0) {
                 htmlFinal = `
                     <div class="alert alert-success text-center p-4 border border-success">
                         <h1 class="display-4">✅</h1>
                         <h3 class="fw-bold">Caixa conferida com sucesso!</h3>
                         <p class="fs-5">Todos os processos físicos conferem com a listagem do banco de dados.</p>
-                    </div>
-                `;
+                    </div>`;
             } else {
-                htmlFinal = `<h4 class="text-danger mb-4 text-center">⚠️ A caixa apresenta as seguintes alterações:</h4>`;
-                htmlFinal += `<div class="row">`;
-
-                if (qtdNovos > 0) {
-                    htmlFinal += `
-                        <div class="col-6">
-                            <div class="card border-warning h-100">
-                                <div class="card-header bg-warning text-dark text-center fw-bold">
-                                    NOVOS PROCESSOS (${qtdNovos})
-                                    <br><small>Encontrados fisicamente, mas não constavam na lista.</small>
-                                </div>
-                                <ul class="list-group list-group-flush text-center font-monospace small">
-                    `;
-                    listaNovos.forEach(item => {
-                        const num = item.innerText.replace("NOVO", "").trim();
-                        htmlFinal += `<li class="list-group-item py-1">${num}</li>`;
-                    });
-                    htmlFinal += `</ul></div></div>`;
-                }
-
-                if (qtdFaltantes > 0) {
-                    htmlFinal += `
-                        <div class="col-6">
-                            <div class="card border-danger h-100">
-                                <div class="card-header bg-danger text-white text-center fw-bold">
-                                    NÃO ENCONTRADOS (${qtdFaltantes})
-                                    <br><small>Constam na lista, mas não foram bipados.</small>
-                                </div>
-                                <ul class="list-group list-group-flush text-center font-monospace small">
-                    `;
-                    listaFaltantes.forEach(item => {
-                        htmlFinal += `<li class="list-group-item py-1">${item.innerText}</li>`;
-                    });
-                    htmlFinal += `</ul></div></div>`;
-                }
+                htmlFinal = `<h4 class="text-danger mb-4 text-center">⚠️ A caixa apresenta alterações:</h4><div class="row">`;
                 
+                if (listaNovos.length > 0) {
+                    htmlFinal += `<div class="col-6"><div class="card border-warning h-100"><div class="card-header bg-warning text-dark text-center fw-bold">NOVOS PROCESSOS (${listaNovos.length})</div><ul class="list-group list-group-flush text-center small">`;
+                    listaNovos.forEach(item => htmlFinal += `<li class="list-group-item py-1">${item.innerText.replace("NOVO","")}</li>`);
+                    htmlFinal += `</ul></div></div>`;
+                }
+                if (listaFaltantes.length > 0) {
+                    htmlFinal += `<div class="col-6"><div class="card border-danger h-100"><div class="card-header bg-danger text-white text-center fw-bold">NÃO ENCONTRADOS (${listaFaltantes.length})</div><ul class="list-group list-group-flush text-center small">`;
+                    listaFaltantes.forEach(item => htmlFinal += `<li class="list-group-item py-1">${item.innerText}</li>`);
+                    htmlFinal += `</ul></div></div>`;
+                }
                 htmlFinal += `</div>`; 
             }
-            conteudoDiv.innerHTML = htmlFinal;
+
+            document.getElementById('conteudo-relatorio').innerHTML = htmlFinal;
             telaConferencia.style.display = 'none';
             telaRelatorio.style.display = 'block';
         });
 
-        // --- FUNÇÕES UTILITÁRIAS ---
         function tocarSomAlerta() {
             try {
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.value = 150;
+                oscillator.type = 'sawtooth'; oscillator.frequency.value = 150;
                 gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.3);
+                oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+                oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.3);
             } catch (e) { console.error(e); }
         }
 
@@ -350,22 +234,14 @@
                 .then(data => {
                     listaDireita.innerHTML = '';
                     countBanco.innerText = data.processos.length;
-                    if (data.processos.length === 0) {
-                        listaDireita.innerHTML = '<li class="list-group-item text-danger">Caixa vazia.</li>';
-                        return;
-                    }
+                    if (data.processos.length === 0) { listaDireita.innerHTML = '<li class="list-group-item text-danger">Caixa vazia.</li>'; return; }
                     data.processos.forEach(proc => {
                         const li = document.createElement('li');
-                        li.className = 'list-group-item';
-                        li.id = 'banco-' + proc.numero;
-                        li.innerText = proc.numero;
+                        li.className = 'list-group-item'; li.id = 'banco-' + proc.numero; li.innerText = proc.numero;
                         listaDireita.appendChild(li);
                     });
                 })
-                .catch(err => {
-                    console.error(err);
-                    listaDireita.innerHTML = '<li class="list-group-item text-danger">Erro de conexão.</li>';
-                });
+                .catch(err => { console.error(err); listaDireita.innerHTML = '<li class="list-group-item text-danger">Erro de conexão.</li>'; });
         }
     });
 </script>
