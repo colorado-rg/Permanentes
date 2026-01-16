@@ -11,27 +11,83 @@ from .models import Listagem, ProcessoPermanente, ItemProcesso
 from django.http import JsonResponse
 import re
 
+# Função auxiliar para limpar números
+def apenas_numeros(texto):
+    return re.sub(r'\D', '', str(texto)) if texto else ''
+
+@login_required
 def checar_processo_individual(request):
-    numero = request.GET.get('numero', '').strip()
+    numero_input = request.GET.get('numero', '').strip()
+    numero_limpo_input = apenas_numeros(numero_input)
     
-    # Tenta buscar exato
-    processo = ProcessoPermanente.objects.filter(numero=numero).first()
+    if not numero_limpo_input:
+        return JsonResponse({'encontrado': False})
+
+    # 1. BUSCA O PROCESSO
+    # Tenta exato
+    processo = ProcessoPermanente.objects.filter(numero=numero_input).first()
+
+    # Se não achar exato, tenta inteligente (limpando formatação)
+    if not processo:
+        raiz = numero_limpo_input[:10]
+        candidatos = ProcessoPermanente.objects.filter(numero__icontains=raiz)
+        for cand in candidatos:
+            if apenas_numeros(cand.numero) == numero_limpo_input:
+                processo = cand
+                break
     
     if processo:
+        # --- AQUI ESTAVA O PROBLEMA ---
+        # Vamos pegar o valor BRUTO do banco de dados
+        situacao_db = processo.situacao
+        
+        # Converte para string para garantir que não quebre se for None
+        # Se for None ou Vazio, define um texto padrão claro
+        if situacao_db:
+            situacao_texto = str(situacao_db).strip()
+            # Se a string ficou vazia após o strip (ex: só tinha espaços)
+            if not situacao_texto:
+                situacao_texto = "Campo vazio no banco"
+        else:
+            situacao_texto = "Campo Nulo (None)"
+
+        # Lógica de detecção de Permanente (Maiúsculo/Minúsculo)
         is_permanente = False
-        if processo.situacao and 'PERMANENTE' in processo.situacao.upper():
+        if 'PERMANENTE' in situacao_texto.upper():
             is_permanente = True
             
+        # DEBUG: Olhe no seu terminal para ver o que o Python leu
+        print(f"PROCESSO: {processo.numero}")
+        print(f"SITUAÇÃO BRUTA: '{situacao_db}'")
+        print(f"SITUAÇÃO FINAL: '{situacao_texto}'")
+
         return JsonResponse({
             'encontrado': True,
             'caixa_origem': processo.caixa,
-            'situacao': processo.situacao,
-            'is_permanente': is_permanente
+            'situacao': situacao_texto,  # Envia o texto exato recuperado
+            'is_permanente': is_permanente,
+            'numero_db': processo.numero
         })
     else:
         return JsonResponse({'encontrado': False})
+
+
+@login_required
+def get_processos(request):
+    caixa = request.GET.get('caixa')
+    processos = ProcessoPermanente.objects.filter(caixa=caixa)
     
+    # IMPORTANTE: Envia o número LIMPO para o frontend facilitar a comparação
+    data = []
+    for p in processos:
+        data.append({
+            'numero': apenas_numeros(p.numero), # Limpa aqui para bater com o leitor
+            'numero_original': p.numero,        # Mantém o original para exibição se quiser
+            'situacao': p.situacao if p.situacao else "Sem Situação"
+        })
     
+    return JsonResponse({'processos': data})    
+
 # (Vamos precisar criar um formulário simples, mas por enquanto faremos sem)
 @login_required
 def home(request):

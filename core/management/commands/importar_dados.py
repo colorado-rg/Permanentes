@@ -1,90 +1,63 @@
 import csv
+import re
 import os
 from django.core.management.base import BaseCommand
 from core.models import ProcessoPermanente
 
 class Command(BaseCommand):
-    help = 'Importa dados do arquivo dados.csv para o banco de dados'
+    help = 'Importa processos do arquivo dados.csv'
 
-    def handle(self, *args, **kwargs):
-        nome_arquivo = 'dados.csv'
-        caminho = os.path.join(os.getcwd(), nome_arquivo)
+    def add_arguments(self, parser):
+        parser.add_argument('arquivo_csv', type=str, help='Caminho do arquivo CSV')
+
+    def handle(self, *args, **options):
+        caminho = options['arquivo_csv']
 
         if not os.path.exists(caminho):
-            self.stdout.write(self.style.ERROR(f'Arquivo não encontrado: {caminho}. Coloque-o na pasta raiz.'))
+            self.stdout.write(self.style.ERROR(f'Arquivo não encontrado: {caminho}'))
             return
 
-        self.stdout.write(f'--- Iniciando importação de: {nome_arquivo} ---')
-
-        # ALTERAÇÃO AQUI: Mudamos de 'utf-8-sig' para 'latin-1' para ler arquivos do Excel/Windows
-        try:
-            arquivo_csv = open(caminho, 'r', encoding='latin-1')
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Erro ao abrir arquivo. Tente salvar o CSV como "CSV UTF-8". Erro: {e}'))
+        self.stdout.write(self.style.WARNING('ATENÇÃO: Isso apagará o banco de dados atual para importar o novo.'))
+        # Se quiser pular a confirmação para testes rápidos, comente as 3 linhas abaixo
+        confirm = input("Deseja continuar? (s/n): ")
+        if confirm.lower() != 's':
+            self.stdout.write(self.style.ERROR('Cancelado.'))
             return
 
-        with arquivo_csv:
-            # Lê a primeira linha para descobrir se o separador é , ou ;
-            primeira_linha = arquivo_csv.readline()
-            separador = ';' if ';' in primeira_linha else ','
-            arquivo_csv.seek(0) # Volta para o início
+        # 1. Limpa o banco
+        ProcessoPermanente.objects.all().delete()
+        self.stdout.write(self.style.SUCCESS('Banco limpo. Iniciando leitura...'))
 
-            self.stdout.write(f'Separador detectado: "{separador}"')
-
-            leitor = csv.DictReader(arquivo_csv, delimiter=separador)
+        objetos = []
+        
+        # 2. Lê o arquivo
+        # Usamos 'utf-8' pois o arquivo é utf-8 (mesmo que tenha caracteres corrompidos gravados nele)
+        with open(caminho, 'r', encoding='utf-8', errors='replace') as f:
+            # O arquivo usa VÍRGULA como separador
+            reader = csv.DictReader(f, delimiter=',')
             
-            # Normalizar cabeçalhos: Maiúsculas e sem espaços nas pontas
-            leitor.fieldnames = [name.strip().upper() for name in leitor.fieldnames]
-            self.stdout.write(f'Colunas detectadas: {leitor.fieldnames}')
+            for row in reader:
+                # Mapeamento: Nome na Planilha -> Nome no Banco
+                
+                # Processo -> numero
+                raw_num = row.get('Processo', '')
+                num_limpo = re.sub(r'\D', '', raw_num) # Remove pontos e traços
 
-            contador_sucesso = 0
-            contador_erro = 0
-            
-            for linha in leitor:
-                try:
-                    # Tenta pegar o processo. Se a coluna for "Processo", vira "PROCESSO"
-                    numero_bruto = linha.get('PROCESSO')
-                    
-                    if not numero_bruto:
-                        continue 
+                if not num_limpo:
+                    continue
 
-                    # Limpa o número (apenas dígitos)
-                    numero_limpo = ''.join(filter(str.isdigit, numero_bruto))
+                # Cria o objeto na memória
+                obj = ProcessoPermanente(
+                    numero=num_limpo,
+                    caixa=row.get('Caixa', '').strip(),     # Coluna 'Caixa'
+                    situacao=row.get('Situacao', '').strip(), # Coluna 'Situacao'
+                    assunto=row.get('Assunto', '').strip(),   # Coluna 'Assunto'
+                    # Se seu modelo tiver o campo 'classe', descomente a linha abaixo:
+                    # classe=row.get('Classe', '').strip(),
+                )
+                objetos.append(obj)
 
-                    if not numero_limpo:
-                        continue
-
-                    # Cria ou Atualiza
-                    obj, created = ProcessoPermanente.objects.update_or_create(
-                        numero=numero_limpo,
-                        defaults={
-                            'classe': linha.get('CLASSE', ''),
-                            'situacao': linha.get('SITUAÇÃO', ''), 
-                            'assunto': linha.get('ASSUNTO', ''),
-                            'orgao_atual': linha.get('ÓRGÃO ATUAL', '') or linha.get('ORGAO ATUAL', ''),
-                            'localizador': linha.get('LOCALIZADOR', ''),
-                            
-                            # Tenta variações do nome da coluna "Situação Detalhe"
-                            'situacao_detalhe': (
-                                linha.get('SITUAÇÃO_DETALHE') or 
-                                linha.get('SITUACAO_DETALHE') or 
-                                linha.get('SITUAÇÃO DETALHE') or
-                                linha.get('SITUAÇÃO.1') # Às vezes o Excel faz isso com colunas duplicadas
-                            ), 
-                            
-                            'caixa': linha.get('CAIXA', ''),
-                        }
-                    )
-                    
-                    contador_sucesso += 1
-                    if contador_sucesso % 500 == 0:
-                        self.stdout.write(f'... Processados {contador_sucesso} ...')
-
-                except Exception as e:
-                    contador_erro += 1
-                    # Mostra o erro mas continua a importação
-                    # self.stdout.write(self.style.WARNING(f'Erro na linha: {e}'))
-
-        self.stdout.write(self.style.SUCCESS(f'--- Concluído! ---'))
-        self.stdout.write(f'Sucesso: {contador_sucesso}')
-        self.stdout.write(f'Erros: {contador_erro}')
+        # 3. Salva no Banco (Bulk Create para ser rápido)
+        ProcessoPermanente.objects.bulk_create(objetos)
+        
+        self.stdout.write(self.style.SUCCESS(f'SUCESSO! {len(objetos)} processos importados.'))
