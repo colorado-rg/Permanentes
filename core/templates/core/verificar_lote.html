@@ -9,17 +9,16 @@
         .modal-dialog { visibility: visible !important; margin: 0; width: 100%; max-width: 100%; }
         .modal-content { visibility: visible !important; border: none; }
         .modal-body, .modal-body * { visibility: visible !important; }
-        table { width: 100% !important; border-collapse: collapse; }
+        table { width: 100% !important; border-collapse: collapse; page-break-inside: avoid; }
         th, td { border: 1px solid #000 !important; padding: 5px !important; font-size: 10pt; color: #000; }
         .badge { border: 1px solid #000; color: #000; background: none !important; padding: 2px; }
+        .card-header { border: 1px solid #000 !important; color: #000 !important; }
     }
 </style>
 
 <div class="container mt-4">
     <div class="card shadow-sm mb-5 no-print">
-        <div class="card-header bg-primary text-white">
-            <h4 class="m-0">Verificação em Lote</h4>
-        </div>
+        <div class="card-header bg-primary text-white"><h4 class="m-0">Verificação em Lote</h4></div>
         <div class="card-body">
             <p class="text-muted">Cole abaixo a lista de números de processos.</p>
             <form method="post">
@@ -45,55 +44,71 @@
                 </div>
                 
                 <div class="modal-body p-4">
-                    
                     <div class="text-center mb-4 border-bottom pb-3">
                         <h2>Relatório de Busca em Lote</h2>
-                        
                         <div class="text-muted small mb-3">
                             Impressão gerada por: <strong>{{ user.get_full_name|default:user.username|upper }}</strong><br>
                             Em: <strong>{% now "d/m/Y" %}</strong> às <strong>{% now "H:i" %}</strong>
                         </div>
-
                         <div class="row text-center mt-3">
-                            <div class="col-md-4">
-                                <div class="p-2 border rounded bg-light">Verificados: <strong>{{ qtd_verificados }}</strong></div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-2 border rounded bg-success-subtle">Encontrados: <strong>{{ qtd_encontrados }}</strong></div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-2 border rounded bg-danger-subtle">Não Constam: <strong>{{ nao_encontrados|length }}</strong></div>
-                            </div>
+                            <div class="col-md-4"><div class="p-2 border rounded bg-light">Verificados: <strong>{{ qtd_verificados }}</strong></div></div>
+                            <div class="col-md-4"><div class="p-2 border rounded bg-success-subtle">Total Encontrados: <strong>{{ qtd_encontrados }}</strong></div></div>
+                            <div class="col-md-4"><div class="p-2 border rounded bg-danger-subtle">Não Constam: <strong>{{ nao_encontrados|length }}</strong></div></div>
                         </div>
                     </div>
 
-                    {% if processos %}
-                        <h5 class="text-success mb-2">✅ Processos Encontrados</h5>
-                        <table class="table table-striped table-hover table-bordered mb-4">
-                            <thead class="table-dark">
-                                <tr><th>Processo</th><th>Caixa</th><th>Assunto</th><th>Situação</th></tr>
-                            </thead>
-                            <tbody>
-                                {% for proc in processos %}
-                                <tr>
-                                    <td class="font-monospace fw-bold">{{ proc.numero }}</td>
-                                    <td class="text-center">{% if proc.caixa %}<span class="badge bg-primary fs-6">{{ proc.caixa }}</span>{% else %}-{% endif %}</td>
-                                    <td><div class="fw-bold">{{ proc.assunto|default:"-" }}</div><small>{{ proc.classe|default:"" }}</small></td>
-                                    <td><small>{{ proc.situacao|default:"-" }}</small></td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    {% if lista_permanentes %}
+                        <div class="card mb-4 border-primary">
+                            <div class="card-header bg-primary text-white fw-bold">
+                                📘 PROCESSOS PERMANENTES ({{ lista_permanentes|length }})
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-striped table-hover mb-0">
+                                    <thead class="table-light"><tr><th>Processo</th><th>Caixa</th><th>Assunto</th><th>Situação</th></tr></thead>
+                                    <tbody>
+                                        {% for proc in lista_permanentes %}
+                                        <tr>
+                                            <td class="font-monospace fw-bold">{{ proc.numero }}</td>
+                                            <td class="text-center">{% if proc.caixa %}<span class="badge bg-primary fs-6">{{ proc.caixa }}</span>{% else %}-{% endif %}</td>
+                                            <td><div class="fw-bold">{{ proc.assunto|default:"-" }}</div><small>{{ proc.classe|default:"" }}</small></td>
+                                            <td class="text-center"><span class="badge bg-primary">PERMANENTE</span></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if lista_outros %}
+                        <div class="card mb-4 border-secondary">
+                            <div class="card-header bg-secondary text-white fw-bold">
+                                🗂️ OUTRAS SITUAÇÕES ENCONTRADAS ({{ lista_outros|length }})
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-striped table-hover mb-0">
+                                    <thead class="table-light"><tr><th>Processo</th><th>Caixa</th><th>Assunto</th><th>Situação</th></tr></thead>
+                                    <tbody>
+                                        {% for proc in lista_outros %}
+                                        <tr>
+                                            <td class="font-monospace text-muted">{{ proc.numero }}</td>
+                                            <td class="text-center">{% if proc.caixa %}<span class="badge bg-secondary">{{ proc.caixa }}</span>{% else %}-{% endif %}</td>
+                                            <td><div class="fw-bold text-muted">{{ proc.assunto|default:"-" }}</div></td>
+                                            <td class="text-center"><span class="badge bg-secondary">{{ proc.situacao|default:"-" }}</span></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     {% endif %}
 
                     {% if nao_encontrados %}
-                        <div class="mt-4">
-                            <h5 class="text-danger mb-2">❌ Não encontrados</h5>
-                            <div class="card border-danger">
-                                <div class="card-body bg-light">
-                                    <div class="font-monospace text-danger" style="column-count: 3; column-gap: 20px;">
-                                        {% for num in nao_encontrados %}<div>{{ num }}</div>{% endfor %}
-                                    </div>
+                        <div class="card border-danger mt-4">
+                            <div class="card-header bg-danger text-white fw-bold">❌ NÃO ENCONTRADOS NA BASE ({{ nao_encontrados|length }})</div>
+                            <div class="card-body bg-light">
+                                <div class="font-monospace text-danger" style="column-count: 3; column-gap: 20px;">
+                                    {% for num in nao_encontrados %}<div>{{ num }}</div>{% endfor %}
                                 </div>
                             </div>
                         </div>

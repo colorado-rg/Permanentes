@@ -11,6 +11,27 @@ from .models import Listagem, ProcessoPermanente, ItemProcesso
 from django.http import JsonResponse
 import re
 
+def checar_processo_individual(request):
+    numero = request.GET.get('numero', '').strip()
+    
+    # Tenta buscar exato
+    processo = ProcessoPermanente.objects.filter(numero=numero).first()
+    
+    if processo:
+        is_permanente = False
+        if processo.situacao and 'PERMANENTE' in processo.situacao.upper():
+            is_permanente = True
+            
+        return JsonResponse({
+            'encontrado': True,
+            'caixa_origem': processo.caixa,
+            'situacao': processo.situacao,
+            'is_permanente': is_permanente
+        })
+    else:
+        return JsonResponse({'encontrado': False})
+    
+    
 # (Vamos precisar criar um formulário simples, mas por enquanto faremos sem)
 @login_required
 def home(request):
@@ -252,25 +273,38 @@ def verificar_lote(request):
         
         # Extrai números de 15 dígitos
         numeros_extraidos = re.findall(r'\d{15}', texto_colado)
-        
-        # Remove duplicatas
         numeros_unicos = list(dict.fromkeys(numeros_extraidos))
         
         if not numeros_unicos:
             messages.error(request, 'Nenhum número válido (15 dígitos) encontrado.')
         else:
-            # Busca no banco
+            # Busca todos
             processos_encontrados = ProcessoPermanente.objects.filter(
                 numero__in=numeros_unicos
             )
             
-            lista_encontrados = [p.numero for p in processos_encontrados]
-            nao_encontrados = [num for num in numeros_unicos if num not in lista_encontrados]
+            # --- SEPARAÇÃO DAS LISTAS ---
+            lista_permanentes = []
+            lista_outros = []
+            
+            for p in processos_encontrados:
+                # Verifica se a palavra PERMANENTE está na situação (ignorando maiúsculas/minúsculas)
+                if p.situacao and 'PERMANENTE' in p.situacao.upper():
+                    lista_permanentes.append(p)
+                else:
+                    lista_outros.append(p)
+
+            # Calcula não encontrados
+            lista_encontrados_nums = [p.numero for p in processos_encontrados]
+            nao_encontrados = [num for num in numeros_unicos if num not in lista_encontrados_nums]
 
             context['sucesso'] = True
-            context['processos'] = processos_encontrados
-            context['nao_encontrados'] = nao_encontrados
             context['qtd_verificados'] = len(numeros_unicos)
             context['qtd_encontrados'] = len(processos_encontrados)
+            
+            # Envia as listas separadas
+            context['lista_permanentes'] = lista_permanentes
+            context['lista_outros'] = lista_outros
+            context['nao_encontrados'] = nao_encontrados
 
-    return render(request, 'core/verificar_lote.html', context)     
+    return render(request, 'core/verificar_lote.html', context)

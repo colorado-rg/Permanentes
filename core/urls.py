@@ -11,4 +11,5 @@ urlpatterns = [
     path('verificar-em-lote/', views.verificar_lote, name='verificar_lote'),
     path('ajax/get-processos/', views.get_processos_caixa, name='get_processos_caixa'),
     path('conferir-caixa/', views.conferir_caixa, name='conferir_caixa'),
+    path('ajax/checar-processo/', views.checar_processo_individual, name='checar_processo_individual'),
 ]
