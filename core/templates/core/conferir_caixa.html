@@ -192,11 +192,23 @@
         async function processarInput() {
             let numeroOriginal = inputProcesso.value.trim().replace(/\D/g, ''); 
             if (!numeroOriginal) return;
+            let tam = numeroOriginal.length;
 
+            // 4. VALIDAÇÃO CORRIGIDA (Sintaxe JavaScript)
+            // Se o tamanho for diferente de 10 E diferente de 15...
+            if (tam !== 10 && tam !== 15) {
+                // Dica: É bom avisar o usuário por que não funcionou
+                tocarSom('erro');
+                msgStatus.innerText = `Tamanho inválido (${tam} dígitos). Aceito apenas 10 ou 15.`;
+                msgStatus.className = 'text-warning fw-bold mt-2 text-center';
+                inputProcesso.value = ''; 
+                inputProcesso.focus();
+                return; // Para a execução aqui
+            }
             // Tratamento de ano 98/99
             let numeroProcessado = numeroOriginal;
-            if (numeroOriginal.startsWith('98') && numeroOriginal.length > 2) numeroProcessado = '1998' + numeroOriginal.substring(2);
-            else if (numeroOriginal.startsWith('99') && numeroOriginal.length > 2) numeroProcessado = '1999' + numeroOriginal.substring(2);
+            if (numeroOriginal.startsWith('9819') && numeroOriginal.length > 2) numeroProcessado = '199871100' + numeroOriginal.substring(4);
+            else if (numeroOriginal.startsWith('9919') && numeroOriginal.length > 2) numeroProcessado = '199971100' + numeroOriginal.substring(4);
 
             // Verifica duplicidade visual
             if (verificarDuplicidadeVisual(numeroProcessado)) {
