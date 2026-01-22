@@ -12,8 +12,8 @@ __pycache__/
 *.log
 *.pot
 local_settings.py
-db.sqlite3
 media
+#db.sqlite3
 
 # Ambientes Virtuais (ajusta se o nome da tua pasta for diferente)
 venv/
