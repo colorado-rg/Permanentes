@@ -190,44 +190,41 @@
         btnOkProcesso.addEventListener('click', processarInput);
 
         async function processarInput() {
+            // Apenas remove o que não é número
             let numeroOriginal = inputProcesso.value.trim().replace(/\D/g, ''); 
+            
             if (!numeroOriginal) return;
-            let tam = numeroOriginal.length;
 
-            // 4. VALIDAÇÃO CORRIGIDA (Sintaxe JavaScript)
-            // Se o tamanho for diferente de 10 E diferente de 15...
-            if (tam !== 10 && tam !== 15) {
-                // Dica: É bom avisar o usuário por que não funcionou
-                tocarSom('erro');
-                msgStatus.innerText = `Tamanho inválido (${tam} dígitos). Aceito apenas 10 ou 15.`;
-                msgStatus.className = 'text-warning fw-bold mt-2 text-center';
-                inputProcesso.value = ''; 
-                inputProcesso.focus();
-                return; // Para a execução aqui
+            // Validação simples de tamanho (aceita 10 ou 15 agora)
+            if (numeroOriginal.length < 10) {
+                 msgStatus.innerText = "Número muito curto.";
+                 return;
             }
-            // Tratamento de ano 98/99
-            let numeroProcessado = numeroOriginal;
-            if (numeroOriginal.startsWith('9819') && numeroOriginal.length > 2) numeroProcessado = '199871100' + numeroOriginal.substring(4);
-            else if (numeroOriginal.startsWith('9919') && numeroOriginal.length > 2) numeroProcessado = '199971100' + numeroOriginal.substring(4);
 
-            // Verifica duplicidade visual
-            if (verificarDuplicidadeVisual(numeroProcessado)) {
+            // Verifica duplicidade visual na tela
+            // Nota: Verifica se o número JÁ ESTÁ NA TELA, independente do formato
+            if (verificarDuplicidadeVisual(numeroOriginal)) {
                 tocarSom('erro');
-                msgStatus.innerText = `Processo ${numeroProcessado} já foi lido!`;
+                msgStatus.innerText = `Este processo já foi lido!`;
                 msgStatus.className = 'text-warning fw-bold mt-2 text-center';
                 inputProcesso.value = ''; inputProcesso.focus(); 
                 return;
             }
 
-            // CONSULTA AO SERVIDOR
+            // CONSULTA AO SERVIDOR (O Python vai se virar para achar o registro de 15 dígitos)
             try {
-                // console.log("Consultando:", numeroProcessado);
-                const response = await fetch(`/ajax/checar-processo/?numero=${numeroProcessado}`);
+                // Envia o número cru (ex: 9800123456)
+                const response = await fetch(`/ajax/checar-processo/?numero=${numeroOriginal}`);
                 const dados = await response.json();
-                registrarProcesso(numeroProcessado, dados);
+                
+                // Se o servidor achou e retornou o número oficial (15 dígitos), 
+                // usamos ele para exibir na tela, ficando padrão.
+                const numeroParaExibir = dados.encontrado ? dados.numero_db : numeroOriginal;
+                
+                registrarProcesso(numeroParaExibir, dados);
             } catch (error) {
                 console.error("Erro na busca:", error);
-                registrarProcessoOffline(numeroProcessado);
+                registrarProcessoOffline(numeroOriginal);
             }
         }
 

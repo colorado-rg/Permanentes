@@ -11,66 +11,6 @@ from .models import Listagem, ProcessoPermanente, ItemProcesso
 from django.http import JsonResponse
 import re
 
-# Função auxiliar para limpar números
-def apenas_numeros(texto):
-    return re.sub(r'\D', '', str(texto)) if texto else ''
-
-@login_required
-def checar_processo_individual(request):
-    numero_input = request.GET.get('numero', '').strip()
-    numero_limpo_input = apenas_numeros(numero_input)
-    
-    if not numero_limpo_input:
-        return JsonResponse({'encontrado': False})
-
-    # 1. BUSCA O PROCESSO
-    # Tenta exato
-    processo = ProcessoPermanente.objects.filter(numero=numero_input).first()
-
-    # Se não achar exato, tenta inteligente (limpando formatação)
-    if not processo:
-        raiz = numero_limpo_input[:10]
-        candidatos = ProcessoPermanente.objects.filter(numero__icontains=raiz)
-        for cand in candidatos:
-            if apenas_numeros(cand.numero) == numero_limpo_input:
-                processo = cand
-                break
-    
-    if processo:
-        # --- AQUI ESTAVA O PROBLEMA ---
-        # Vamos pegar o valor BRUTO do banco de dados
-        situacao_db = processo.situacao
-        
-        # Converte para string para garantir que não quebre se for None
-        # Se for None ou Vazio, define um texto padrão claro
-        if situacao_db:
-            situacao_texto = str(situacao_db).strip()
-            # Se a string ficou vazia após o strip (ex: só tinha espaços)
-            if not situacao_texto:
-                situacao_texto = "Campo vazio no banco"
-        else:
-            situacao_texto = "Campo Nulo (None)"
-
-        # Lógica de detecção de Permanente (Maiúsculo/Minúsculo)
-        is_permanente = False
-        if 'PERMANENTE' in situacao_texto.upper():
-            is_permanente = True
-            
-        # DEBUG: Olhe no seu terminal para ver o que o Python leu
-        print(f"PROCESSO: {processo.numero}")
-        print(f"SITUAÇÃO BRUTA: '{situacao_db}'")
-        print(f"SITUAÇÃO FINAL: '{situacao_texto}'")
-
-        return JsonResponse({
-            'encontrado': True,
-            'caixa_origem': processo.caixa,
-            'situacao': situacao_texto,  # Envia o texto exato recuperado
-            'is_permanente': is_permanente,
-            'numero_db': processo.numero
-        })
-    else:
-        return JsonResponse({'encontrado': False})
-
 
 @login_required
 def get_processos(request):
@@ -320,47 +260,141 @@ def apagar_item(request, item_pk): # <-- O nome do argumento 'item_pk' deve corr
     return redirect('detalhe_listagem', pk=listagem.pk)
 
 @login_required
-def verificar_lote(request):
-    context = {} 
+def checar_processo_individual(request):
+    """AJAX para conferência caixa a caixa"""
+    numero_input = request.GET.get('numero', '').strip()
+    
+    # Usa a busca inteligente
+    processo = buscar_processo_no_banco(numero_input)
+    
+    if processo:
+        # Pega a situação exata
+        situacao_db = processo.situacao
+        situacao_texto = str(situacao_db).strip() if situacao_db else "Campo Nulo"
+        if not situacao_texto: situacao_texto = "Vazio"
 
+        # Verifica se é Permanente
+        is_permanente = 'PERMANENTE' in situacao_texto.upper()
+        
+        return JsonResponse({
+            'encontrado': True,
+            'caixa_origem': processo.caixa,
+            'situacao': situacao_texto,
+            'is_permanente': is_permanente,
+            'numero_db': processo.numero # Retorna o número oficial (15 dígitos) para exibir
+        })
+    else:
+        return JsonResponse({'encontrado': False})
+
+@login_required
+def verificar_lote(request):
+    """Verificação em massa (Cola Lista)"""
+    context = {} 
     if request.method == 'POST':
         texto_colado = request.POST.get('lista_processos', '')
         context['texto_original'] = texto_colado
         
-        # Extrai números de 15 dígitos
-        numeros_extraidos = re.findall(r'\d{15}', texto_colado)
+        # Regex captura sequências de 10 a 25 dígitos
+        numeros_extraidos = re.findall(r'\d{10,25}', texto_colado)
         numeros_unicos = list(dict.fromkeys(numeros_extraidos))
         
-        if not numeros_unicos:
-            messages.error(request, 'Nenhum número válido (15 dígitos) encontrado.')
-        else:
-            # Busca todos
-            processos_encontrados = ProcessoPermanente.objects.filter(
-                numero__in=numeros_unicos
-            )
-            
-            # --- SEPARAÇÃO DAS LISTAS ---
-            lista_permanentes = []
-            lista_outros = []
-            
-            for p in processos_encontrados:
-                # Verifica se a palavra PERMANENTE está na situação (ignorando maiúsculas/minúsculas)
-                if p.situacao and 'PERMANENTE' in p.situacao.upper():
-                    lista_permanentes.append(p)
-                else:
-                    lista_outros.append(p)
+        lista_permanentes = []
+        lista_outros = []
+        encontrados_map = {} # Evita duplicar objetos se inputs diferentes levarem ao mesmo processo
 
-            # Calcula não encontrados
-            lista_encontrados_nums = [p.numero for p in processos_encontrados]
-            nao_encontrados = [num for num in numeros_unicos if num not in lista_encontrados_nums]
-
-            context['sucesso'] = True
-            context['qtd_verificados'] = len(numeros_unicos)
-            context['qtd_encontrados'] = len(processos_encontrados)
+        for num_input in numeros_unicos:
+            proc = buscar_processo_no_banco(num_input)
             
-            # Envia as listas separadas
-            context['lista_permanentes'] = lista_permanentes
-            context['lista_outros'] = lista_outros
-            context['nao_encontrados'] = nao_encontrados
+            if proc:
+                # Usa o ID do processo como chave única
+                if proc.id not in encontrados_map:
+                    encontrados_map[proc.id] = True
+                    
+                    situacao = str(proc.situacao).upper() if proc.situacao else ""
+                    if 'PERMANENTE' in situacao:
+                        lista_permanentes.append(proc)
+                    else:
+                        lista_outros.append(proc)
+        
+        # Calcula não encontrados (baseado nos inputs originais)
+        # Se o input achou alguém, conta como encontrado.
+        # (Lógica simplificada: se total inputs > total achados, mostra diferença)
+        # Para precisão total, teríamos que mapear input -> sucesso.
+        
+        # Aqui, vamos listar como "Não Encontrados" aqueles inputs que retornaram None
+        nao_encontrados = []
+        for num_input in numeros_unicos:
+            if not buscar_processo_no_banco(num_input):
+                nao_encontrados.append(num_input)
+
+        context['sucesso'] = True
+        context['qtd_verificados'] = len(numeros_unicos)
+        context['qtd_encontrados'] = len(lista_permanentes) + len(lista_outros)
+        context['lista_permanentes'] = lista_permanentes
+        context['lista_outros'] = lista_outros
+        context['nao_encontrados'] = nao_encontrados
 
     return render(request, 'core/verificar_lote.html', context)
+
+
+def apenas_numeros(texto):
+    """Remove tudo que não for dígito."""
+    return re.sub(r'\D', '', str(texto)) if texto else ''
+
+def buscar_processo_no_banco(numero_input):
+    """
+    Busca inteligente que lida com 10 dígitos (formato antigo) e 15/20 dígitos (novo).
+    Prioriza encontrar registros PERMANENTES.
+    """
+    numero_limpo = apenas_numeros(numero_input)
+    if not numero_limpo:
+        return None
+
+    # TENTATIVA 1: Busca Exata (Ideal)
+    # Tenta pelo input original e pelo limpo
+    for n in [numero_input, numero_limpo]:
+        processo = ProcessoPermanente.objects.filter(numero=n).first()
+        if processo: return processo
+
+    # TENTATIVA 2: Busca por Conversão de 10 dígitos
+    # Exemplo: Input 9919056901 (10 dígitos) -> Alvo 199971100056908
+    if len(numero_limpo) == 10:
+        # 1. Ignora o último dígito (Verificador antigo)
+        corpo = numero_limpo[:-1] # Ex: 991905690
+        
+        # 2. Extrai o Ano (2 primeiros dígitos)
+        ano_prefixo = corpo[:2] # 99
+        try:
+            if int(ano_prefixo) > 50: # Corte para 19xx vs 20xx
+                ano_completo = '19' + ano_prefixo
+            else:
+                ano_completo = '20' + ano_prefixo
+        except:
+            ano_completo = '20' + ano_prefixo
+
+        # 3. Extrai a Sequência Numérica (O "DNA" do processo)
+        # Pegamos os últimos 5 dígitos do corpo. Isso ignora códigos de vara no meio.
+        # Ex: De '991905690' pegamos '05690'.
+        # O alvo '199971100056908' contem '05690'.
+        sequencia_dna = corpo[-5:] 
+        
+        # Busca no banco: Começa com o Ano E contém a Sequência
+        candidatos = ProcessoPermanente.objects.filter(
+            numero__startswith=ano_completo,
+            numero__contains=sequencia_dna
+        )
+
+        # 4. PRIORIDADE: Se achou mais de um, pega o que for PERMANENTE
+        melhor_candidato = None
+        for cand in candidatos:
+            situacao = str(cand.situacao).upper() if cand.situacao else ""
+            if 'PERMANENTE' in situacao:
+                return cand # Achou um permanente! Retorna na hora.
+            
+            # Se não for permanente, guarda o primeiro que achou como "plano B"
+            if not melhor_candidato:
+                melhor_candidato = cand
+        
+        return melhor_candidato
+
+    return None
